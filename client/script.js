@@ -173,8 +173,8 @@ class TripBudgetManager {
 
     // --- Handlers ---
 
-    async handleJoinTrip(e) {
-        e.preventDefault();
+    async handleJoinTrip(e, pin = null) {
+        if (e && e.preventDefault) e.preventDefault();
         const code = document.getElementById('joinCode').value.trim().toUpperCase();
         const name = document.getElementById('joinName').value.trim();
 
@@ -184,14 +184,28 @@ class TripBudgetManager {
         }
 
         try {
+            const body = { code, name };
+            if (pin) body.pin = pin;
+
             const response = await fetch('/api/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, name })
+                body: JSON.stringify(body)
             });
             const result = await response.json();
 
             if (response.ok) {
+                if (result.status === 'require_pin') {
+                    // Prompt for PIN
+                    const enteredPin = prompt('Enter Admin PIN to login:');
+                    if (enteredPin) {
+                        this.handleJoinTrip(null, enteredPin);
+                    } else {
+                        this.showNotification('PIN required for Admin login', 'error');
+                    }
+                    return;
+                }
+
                 if (result.status === 'pending') {
                     this.showNotification('Join request sent to Admin for approval!', 'success');
                     // We don't log them in yet, just notify
@@ -214,7 +228,7 @@ class TripBudgetManager {
                     localStorage.setItem('tripUser', JSON.stringify(this.currentUser));
                     this.tripData = result.data;
                     this.showAppSection();
-                    this.showNotification(`Welcome ${name}!`, 'success');
+                    this.showNotification(result.message || `Welcome ${name}!`, 'success');
                 }
             } else {
                 this.showNotification(result.message || 'Failed to join', 'error');
@@ -282,7 +296,8 @@ class TripBudgetManager {
                     tripName: tripName,
                     budget: budgetAmount,
                     memberCount: memberCount,
-                    tripDate: tripDateTime
+                    tripDate: tripDateTime,
+                    adminPin: formData.get('adminPin') // Send Admin PIN
                 })
             });
 

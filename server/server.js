@@ -130,11 +130,18 @@ app.get('/api/trip', (req, res) => {
 // Create or update trip details (setup)
 app.post('/api/trip', (req, res) => {
     const data = readData();
-    const { tripName, budget, memberCount, tripDate } = req.body;
+    const { tripName, budget, memberCount, tripDate, adminPin } = req.body;
+
+    console.log('>>> Setup Trip:', { tripName, adminPin }); // Debug Log
+
     data.tripName = tripName;
     data.budget = parseFloat(budget) || 0;
     data.memberCount = parseInt(memberCount) || 0;
     data.tripDate = tripDate;
+    if (adminPin) {
+        data.adminPin = adminPin; // Store Admin PIN
+        console.log('>>> Admin PIN saved:', data.adminPin);
+    }
     if (!data.tripCode) data.tripCode = generateTripCode();
     // Recalculate expected contributions for existing members
     recalculateState(data);
@@ -144,11 +151,34 @@ app.post('/api/trip', (req, res) => {
 
 // Join trip (creates pending member request or adds member directly)
 app.post('/api/join', (req, res) => {
-    const { code, name } = req.body;
+    const { code, name, pin } = req.body;
     const data = readData();
+
+    console.log('>>> Join Request:', { code, name, pin }); // Debug Log
+    console.log('>>> Stored Admin PIN:', data.adminPin); // Debug Log
 
     if (data.tripCode !== code) {
         return res.status(400).json({ message: 'Invalid Trip Code' });
+    }
+
+    // Check if joining as Admin (first member)
+    const isAdmin = data.members.length > 0 && data.members[0].name.toLowerCase() === name.toLowerCase();
+    console.log('>>> Is Admin?', isAdmin); // Debug Log
+
+    // If Admin, verify PIN
+    if (isAdmin) {
+        if (!data.adminPin) {
+            console.log('>>> No Admin PIN stored (Legacy)');
+            // Legacy trip without PIN - allow access (or force setup later)
+        } else if (!pin) {
+            console.log('>>> PIN required but not provided');
+            return res.json({ status: 'require_pin', message: 'Admin PIN required' });
+        } else if (pin !== data.adminPin) {
+            console.log('>>> Invalid PIN provided');
+            return res.status(401).json({ message: 'Invalid Admin PIN' });
+        } else {
+            console.log('>>> PIN verified successfully');
+        }
     }
 
     // If already a member, return it

@@ -138,12 +138,15 @@
                             <div class="join-input-group">
                                 <input type="text" id="joinCode" placeholder="Enter 6-digit Code" maxlength="6"
                                     style="text-transform: uppercase;" required>
-                                <input type="text" id="joinName" placeholder="Your Name" required>
+                                <input type="text" id="joinName" placeholder="Your Name (to join or login)" required>
                             </div>
+                            <small style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.5rem;">
+                                Enter your name to join as a new member or log back in to your existing account.
+                            </small>
                         </div>
                         <button type="submit" class="google-button secondary full-width">
                             <span class="material-icons">login</span>
-                            Join Trip
+                            Join / Login
                         </button>
                     </form>
                 </div>
@@ -213,6 +216,17 @@
                             Your Name (Admin)
                         </label>
                         <input type="text" id="adminName" name="adminName" placeholder="Enter your name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="adminPin">
+                            <span class="material-icons">lock</span>
+                            Admin PIN (4 digits)
+                        </label>
+                        <input type="password" id="adminPin" name="adminPin" placeholder="1234" maxlength="4"
+                            pattern="\d{4}" required title="Please enter a 4-digit PIN">
+                        <small style="color: var(--text-secondary); font-size: 0.8rem;">Required to login as Admin
+                            later</small>
                     </div>
 
                     <button type="submit" class="google-button primary">
