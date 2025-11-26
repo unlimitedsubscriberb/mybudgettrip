@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Budget Manager Web App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="material-icons">account_balance_wallet</span>
+                    <h1>Trip Budget Manager</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="icon-button" onclick="exportToPDF()" title="Export to PDF">
+                        <span class="material-icons">picture_as_pdf</span>
+                    </button>
+                    <button class="icon-button" onclick="exportData()" title="Export data">
+                        <span class="material-icons">download</span>
+                    </button>
+                    <button class="icon-button" onclick="resetApp()" title="Reset app" id="resetAppBtn"
+                        style="display: none;">
+                        <span class="material-icons">refresh</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Landing Page Section -->
+        <section id="landingSection" class="setup-section">
+            <div class="setup-card">
+                <div class="setup-header">
+                    <span class="material-icons">flight_takeoff</span>
+                    <h2>Welcome to Trip Budget</h2>
+                    <p>Manage your group expenses easily</p>
+                </div>
+
+                <div class="landing-actions">
+                    <button class="google-button primary full-width" onclick="showSetupForm()">
+                        <span class="material-icons">add_circle</span>
+                        Create New Trip
+                    </button>
+
+                    <div class="divider">
+                        <span>OR</span>
+                    </div>
+
+                    <form id="joinTripForm" class="join-form">
+                        <div class="form-group">
+                            <label for="joinCode">Have a Trip Code?</label>
+                            <div class="join-input-group">
+                                <input type="text" id="joinCode" placeholder="Enter 6-digit Code" maxlength="6"
+                                    style="text-transform: uppercase;" required>
+                                <input type="text" id="joinName" placeholder="Your Name" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="google-button secondary full-width">
+                            <span class="material-icons">login</span>
+                            Join Trip
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Setup Section -->
+        <section id="setupSection" class="setup-section" style="display: none;">
+            <div class="setup-card">
+                <div class="setup-header">
+                    <button class="icon-button back-button" onclick="showLandingPage()">
+                        <span class="material-icons">arrow_back</span>
+                    </button>
+                    <span class="material-icons">flight_takeoff</span>
+                    <h2>Start Your Trip Budget</h2>
+                    <p>Set up your trip details to begin managing expenses</p>
+                </div>
+
+                <form id="setupForm" class="setup-form">
+                    <div class="form-group">
+                        <label for="tripName">
+                            <span class="material-icons">label</span>
+                            Trip Name
+                        </label>
+                        <input type="text" id="tripName" name="tripName" placeholder="e.g., Goa Beach Trip" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="budgetType">
+                            <span class="material-icons">settings</span>
+                            Budget Type
+                        </label>
+                        <select id="budgetType" name="budgetType" onchange="tripManager.toggleBudgetInput()"
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-primary);">
+                            <option value="total">Total Trip Budget</option>
+                            <option value="person">Amount Per Person</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="budgetAmount" id="budgetLabel">
+                            <span class="material-icons">currency_rupee</span>
+                            Total Budget (₹)
+                        </label>
+                        <input type="number" id="budgetAmount" name="budgetAmount" placeholder="30000" min="1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="memberCount">
+                            <span class="material-icons">group</span>
+                            Number of Members
+                        </label>
+                        <input type="number" id="memberCount" name="memberCount" placeholder="6" min="1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tripDateTime">
+                            <span class="material-icons">event</span>
+                            Trip Date & Time
+                        </label>
+                        <input type="datetime-local" id="tripDateTime" name="tripDateTime" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="adminName">
+                            <span class="material-icons">person</span>
+                            Your Name (Admin)
+                        </label>
+                        <input type="text" id="adminName" name="adminName" placeholder="Enter your name" required>
+                    </div>
+
+                    <button type="submit" class="google-button primary">
+                        <span class="material-icons">arrow_forward</span>
+                        Start Managing Budget
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Member Names Setup Section -->
+        <section id="memberNamesSection" class="setup-section" style="display: none;">
+            <div class="setup-card">
+                <div class="setup-header">
+                    <span class="material-icons">group_add</span>
+                    <h2>Add Member Names</h2>
+                    <p>Enter names for all <span id="memberCountDisplay">0</span> members</p>
+                </div>
+
+                <form id="memberNamesForm" class="setup-form">
+                    <div id="memberNamesList" class="member-names-list">
+                        <!-- Member name inputs will be generated here -->
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="google-button secondary" onclick="backToSetup()">
+                            <span class="material-icons">arrow_back</span>
+                            Back
+                        </button>
+                        <button type="submit" class="google-button primary">
+                            <span class="material-icons">check</span>
+                            Continue to Budget Management
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- Main App Section -->
+        <main id="appSection" class="app-section" style="display: none;">
+            <!-- Trip Dashboard -->
+            <section class="trip-dashboard">
+                <div class="dashboard-header">
+                    <div class="trip-info">
+                        <h2 id="tripTitle">Trip Name</h2>
+                        <div class="trip-meta">
+                            <span class="material-icons">schedule</span>
+                            <span id="tripDateDisplay">Date</span>
+                            <span class="material-icons">group</span>
+                            <span id="memberCountDisplayMain">0 Members</span>
+                        </div>
+                        <div class="trip-code-container" id="tripCodeContainer" style="display: none;">
+                            <span class="code-label">Trip Code:</span>
+                            <span class="code-value" id="tripCodeDisplay">Loading...</span>
+                            <button class="icon-button" onclick="copyTripCode()" title="Copy Code">
+                                <span class="material-icons">content_copy</span>
+                            </button>
+                            <button class="icon-button share-btn" onclick="shareTripDetails()" title="Share Trip">
+                                <span class="material-icons">share</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="dashboard-actions">
+                    <button class="google-button secondary" onclick="editTripDetails()">
+                        <span class="material-icons">edit</span>
+                        Edit Trip
+                    </button>
+                </div>
+
+
+                <!-- Admin Approval Section (Hidden by default) -->
+                <div id="approvalSection" class="approval-section" style="display: none;">
+                    <div class="approval-header">
+                        <h3><span class="material-icons">notifications_active</span> Pending Approvals</h3>
+                    </div>
+                    <div id="pendingList" class="pending-list">
+                        <!-- Pending items will be injected here -->
+                    </div>
+                </div>
+
+                <!-- Budget Overview Cards -->
+                <div class="budget-overview">
+                    <div class="overview-card primary">
+                        <div class="card-header">
+                            <span class="material-icons">account_balance</span>
+                            <h3>Total Budget</h3>
+                        </div>
+                        <div class="card-value" id="totalBudget">₹0</div>
+                        <div class="card-status" id="collectionStatus">0% of budget</div>
+                    </div>
+
+                    <div class="overview-card success">
+                        <div class="card-header">
+                            <span class="material-icons">payments</span>
+                            <h3>Collected</h3>
+                        </div>
+                        <div class="card-value" id="totalCollected">₹0</div>
+                        <div class="card-status" id="spentStatus">0% of collected</div>
+                    </div>
+
+                    <div class="overview-card info">
+                        <div class="card-header">
+                            <span class="material-icons">shopping_cart</span>
+                            <h3>Spent</h3>
+                        </div>
+                        <div class="card-value" id="totalSpent">₹0</div>
+                        <div class="card-status">Expenses</div>
+                    </div>
+
+                    <div class="overview-card info">
+                        <div class="card-header">
+                            <span class="material-icons">savings</span>
+                            <h3>Remaining</h3>
+                        </div>
+                        <div class="card-value" id="remainingAmount">₹0</div>
+                        <div class="card-status" id="remainingStatus">Available</div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-container">
+                    <div class="progress-label">Budget Collection Progress</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="budgetProgress"></div>
+                    </div>
+                    <div class="progress-percentage" id="progressPercentage">0%</div>
+                </div>
+            </section>
+
+            <!-- Budget Alerts -->
+            <section class="alerts-section">
+                <div id="budgetAlerts" class="alerts-container"></div>
+            </section>
+
+            <!-- Settlements Section -->
+            <section id="settlementsSection" class="settlements-section" style="display: none;">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h3><b>Settlements</b></h3>
+                    </div>
+                </div>
+                <div id="settlementsList" class="settlements-list"></div>
+            </section>
+
+            <!-- Expense Manager -->
+            <section class="expenses-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h3><b>Expense Manager</b></h3>
+                        <div class="title-controls">
+                            <button class="google-button secondary show-more-button"
+                                onclick="toggleExpensesVisibility()">
+                                <span class="material-icons" id="expensesToggleIcon">expand_more</span>
+                                Show Expense
+                            </button>
+                            <button class="google-button primary whatsapp-button" onclick="shareExpensesToWhatsApp()"
+                                title="Share expenses on WhatsApp">
+                                <span class="material-icons">share</span>
+                                Share
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Add New Expense Form -->
+                    <div class="expense-form-card">
+                        <h4>Add New Expense</h4>
+                        <form id="expenseForm" class="expense-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="expenseTitle">Expense Title</label>
+                                    <input type="text" id="expenseTitle" placeholder="e.g., Dinner at Restaurant"
+                                        required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="expenseAmount">Amount (₹)</label>
+                                    <input type="number" id="expenseAmount" placeholder="1200" min="1" step="0.01"
+                                        required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="expenseCategory">Category</label>
+                                    <select id="expenseCategory" required>
+                                        <option value="">Select Category</option>
+                                        <option value="food">🍔 Food</option>
+                                        <option value="transport">🚗 Transport</option>
+                                        <option value="accommodation">🏨 Accommodation</option>
+                                        <option value="entertainment">🎬 Entertainment</option>
+                                        <option value="shopping">🛍️ Shopping</option>
+                                        <option value="other">📦 Other</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="paidBy">Paid By</label>
+                                    <select id="paidBy" required>
+                                        <option value="">Select Member</option>
+                                        <option value="all_members">👥 All Members (Equal Distribution)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="expenseDescription">Description (Optional)</label>
+                                <textarea id="expenseDescription"
+                                    placeholder="Add notes about this expense..."></textarea>
+                            </div>
+                            <button type="submit" class="google-button primary">
+                                <span class="material-icons">add_circle</span>
+                                Add Expense
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Expenses List -->
+                    <div id="expensesList" class="expenses-list"></div>
+            </section>
+
+            <!-- Member Management -->
+            <section class="members-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h3><b>Member Management</b></h3>
+                        <div class="title-controls">
+                            <button class="icon-button toggle-button" onclick="toggleMembersVisibility()"
+                                title="Toggle Members">
+                                <span class="material-icons" id="membersToggleIcon">visibility</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="section-actions">
+
+                        <button class="google-button primary" onclick="showMemberModal()">
+                            <span class="material-icons">person_add</span>
+                            Add Member
+                        </button>
+                    </div>
+                </div>
+
+                <div id="membersGrid" class="members-grid"></div>
+            </section>
+        </main>
+
+        <!-- Add Member Modal -->
+        <div id="memberModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add New Member</h3>
+                    <button class="icon-button" onclick="hideMemberModal()">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+
+                <form id="memberForm">
+                    <div class="form-group">
+                        <label for="memberName">Member Name</label>
+                        <input type="text" id="memberName" placeholder="Enter member name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="memberContribution">Initial Contribution (₹)</label>
+                        <input type="number" id="memberContribution" placeholder="0" min="0" step="0.01">
+                        <small>Expected contribution: ₹<span id="expectedContribution">0</span></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="equalDistribution" onchange="toggleEqualDistribution()">
+                            Equal Distribution (Set contribution to expected amount)
+                        </label>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="google-button secondary" onclick="hideMemberModal()">
+                            Cancel
+                        </button>
+                        <button type="submit" class="google-button primary">
+                            <span class="material-icons">person_add</span>
+                            Add Member
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
+
+        <!-- Edit Trip Modal -->
+        <div id="editTripModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Edit Trip Details</h3>
+                    <button class="icon-button" onclick="hideEditTripModal()">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+
+                <form id="editTripForm">
+                    <div class="form-group">
+                        <label for="editTripName">Trip Name</label>
+                        <input type="text" id="editTripName" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editBudgetType">Budget Type</label>
+                        <select id="editBudgetType" onchange="tripManager.toggleEditBudgetInput()"
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-primary);">
+                            <option value="total">Total Trip Budget</option>
+                            <option value="person">Amount Per Person</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editBudgetAmount" id="editBudgetLabel">Total Budget (₹)</label>
+                        <input type="number" id="editBudgetAmount" min="1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editMemberCount">Member Count</label>
+                        <input type="number" id="editMemberCount" min="1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editTripDateTime">Trip Date & Time</label>
+                        <input type="datetime-local" id="editTripDateTime" required>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="google-button secondary" onclick="hideEditTripModal()">
+                            Cancel
+                        </button>
+                        <button type="submit" class="google-button primary">
+                            <span class="material-icons">save</span>
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Notification -->
+        <div id="notification" class="notification"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
