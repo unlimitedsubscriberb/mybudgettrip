@@ -1470,8 +1470,6 @@ Join ${adminName}'s trip with this code ➝ ${code} 💬💰
 
         const totalSpent = document.getElementById('totalSpent') ? document.getElementById('totalSpent').textContent : '0';
         message += `Total Spent: ${totalSpent} \n`;
-        message += `\nTrack here: ${window.location.origin} `;
-
         const encodedMessage = encodeURIComponent(message);
         window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
     }
@@ -1516,3 +1514,42 @@ window.toggleMembersVisibility = () => {
 window.copyTripCode = () => tripManager.copyTripCode();
 window.shareTripDetails = () => tripManager.shareTripDetails();
 window.shareExpensesToWhatsApp = () => tripManager.shareExpensesToWhatsApp();
+
+// Dark Mode Logic
+// Dark Mode Logic
+window.toggleDarkMode = function () {
+    console.log('Toggling dark mode');
+    const body = document.body;
+    body.classList.toggle('dark-mode');
+    const isDarkMode = body.classList.contains('dark-mode');
+    localStorage.setItem('darkMode', isDarkMode);
+    updateDarkModeIcon(isDarkMode);
+}
+
+function checkDarkMode() {
+    const isDarkMode = localStorage.getItem('darkMode') === 'true';
+    if (isDarkMode) {
+        document.body.classList.add('dark-mode');
+    }
+    updateDarkModeIcon(isDarkMode);
+}
+
+function updateDarkModeIcon(isDarkMode) {
+    const btn = document.getElementById('darkModeBtn');
+    if (btn) {
+        const icon = btn.querySelector('.material-icons');
+        const text = document.getElementById('darkModeText');
+        if (icon) {
+            // Use brightness_2 (moon) for Dark Mode (when it's currently Light)
+            // Use brightness_7 (sun) for Light Mode (when it's currently Dark)
+            icon.textContent = isDarkMode ? 'brightness_7' : 'brightness_2';
+        }
+        if (text) {
+            text.textContent = isDarkMode ? 'Day Mode' : 'Night Mode';
+        }
+        btn.title = isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+    }
+}
+
+// Initialize Dark Mode
+checkDarkMode();

@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=2">
 </head>
 
 <body>
@@ -31,6 +31,10 @@
                     <button class="icon-button" onclick="resetApp()" title="Reset app" id="resetAppBtn"
                         style="display: none;">
                         <span class="material-icons">refresh</span>
+                    </button>
+                    <button class="google-button secondary" onclick="toggleDarkMode()" id="darkModeBtn">
+                        <span class="material-icons">brightness_2</span>
+                        <span id="darkModeText">Night Mode</span>
                     </button>
                 </div>
             </div>
@@ -479,7 +483,7 @@
         <div id="notification" class="notification"></div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=1"></script>
 </body>
 
 </html>

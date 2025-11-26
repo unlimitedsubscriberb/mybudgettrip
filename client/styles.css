@@ -18,12 +18,117 @@
     --shadow-heavy: 0 10px 20px rgba(0, 0, 0, 0.15);
     --border-radius: 8px;
     --border-radius-large: 12px;
+    box-sizing: border-box;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+/* Dark Mode Variables */
+body.dark-mode {
+    --primary-color: #8ab4f8;
+    --primary-light: #aecbfa;
+    --primary-dark: #1a73e8;
+    --secondary-color: #81c995;
+    --warning-color: #fdd663;
+    --error-color: #f28b82;
+    --info-color: #8ab4f8;
+    --background-color: #202124;
+    --surface-color: #292a2d;
+    --text-primary: #e8eaed;
+    --text-secondary: #9aa0a6;
+    --border-color: #3c4043;
+    --shadow-light: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-medium: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --shadow-heavy: 0 10px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Dark Mode Specific Overrides */
+body.dark-mode .google-button.secondary {
+    color: var(--primary-color);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .google-button.secondary:hover {
+    background-color: rgba(138, 180, 248, 0.08);
+}
+
+body.dark-mode .trip-code-container {
+    background: #3c4043;
+    color: var(--primary-light);
+}
+
+body.dark-mode .approval-section {
+    background: #3c4043;
+    border-color: #5f6368;
+}
+
+body.dark-mode .approval-header {
+    color: var(--warning-color);
+}
+
+body.dark-mode .pending-item {
+    background: var(--surface-color);
+}
+
+body.dark-mode .summary-card {
+    background: var(--surface-color);
+}
+
+body.dark-mode .notification {
+    background: #323232;
+    color: #e8eaed;
+}
+
+body.dark-mode .expense-card {
+    background: var(--surface-color);
+    border-left-color: var(--primary-color);
+}
+
+body.dark-mode .expense-title {
+    color: var(--text-primary);
+}
+
+body.dark-mode .expense-amount {
+    color: var(--error-color);
+}
+
+body.dark-mode .member-card {
+    background: var(--surface-color);
+}
+
+body.dark-mode .overview-card {
+    background: var(--surface-color);
+}
+
+body.dark-mode .setup-card {
+    background: var(--surface-color);
+}
+
+body.dark-mode .progress-container {
+    background: var(--surface-color);
+}
+
+body.dark-mode .expense-form-card {
+    background: var(--surface-color);
+}
+
+body.dark-mode .filter-select {
+    background-color: var(--surface-color);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea {
+    background-color: var(--background-color);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-mode input:focus,
+body.dark-mode select:focus,
+body.dark-mode textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(138, 180, 248, 0.2);
 }
 
 body {
@@ -1098,187 +1203,6 @@ body {
         flex-direction: column;
         gap: 1rem;
     }
-
-    .setup-card {
-        padding: 1.5rem;
-    }
-
-    .member-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .form-row {
-        grid-template-columns: 1fr;
-    }
-
-    .expense-details {
-        gap: 0.75rem;
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .contributions-summary {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* Expense Card Styles - Appended */
-.expenses-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.expense-card {
-    background: white;
-    border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    border-left: 4px solid #1a73e8;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    transition: transform 0.2s, box-shadow 0.2s;
-    margin-bottom: 1rem;
-}
-
-.expense-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.expense-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-}
-
-.expense-title {
-    font-size: 1.1rem;
-    font-weight: 500;
-    color: #202124;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.expense-amount {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #d93025;
-}
-
-.expense-meta {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    color: #5f6368;
-    font-size: 0.85rem;
-    flex-wrap: wrap;
-}
-
-.expense-meta-item {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-
-.expense-meta-item .material-icons {
-    font-size: 1rem;
-}
-
-.expense-description {
-    font-size: 0.9rem;
-    color: #5f6368;
-    padding-top: 0.5rem;
-    border-top: 1px solid #dadce0;
-    margin-top: 0.25rem;
-}
-
-.expense-actions {
-    margin-left: auto;
-}
-
-/* Responsive Design Overrides */
-@media (max-width: 768px) {
-    .container {
-        padding: 1rem;
-    }
-
-    .trip-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1rem;
-    }
-
-    .trip-info h1 {
-        font-size: 1.8rem;
-    }
-
-    .trip-meta {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
-    }
-
-    .dashboard-grid {
-        grid-template-columns: 1fr;
-        /* Stack cards vertically */
-        gap: 1rem;
-    }
-
-    .members-grid {
-        grid-template-columns: 1fr;
-        /* One member per row */
-    }
-
-    .stat-card {
-        padding: 1rem;
-    }
-
-    .member-card {
-        padding: 1rem;
-    }
-
-    .member-stats-grid {
-        grid-template-columns: 1fr 1fr;
-        /* 2x2 grid for stats inside card */
-        gap: 0.8rem;
-    }
-
-    .modal-content {
-        width: 95%;
-        margin: 10% auto;
-        padding: 1.5rem;
-    }
-
-    .btn,
-    .google-button {
-        width: 100%;
-        /* Full width buttons on mobile */
-        justify-content: center;
-    }
-
-    .dashboard-actions {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .trip-code-container {
-        width: 100%;
-        justify-content: space-between;
-        margin-top: 0.5rem;
-    }
-
-    .expense-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
-    }
-
-    .expense-amount {}
 
     .setup-card {
         padding: 1.5rem;
