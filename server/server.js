@@ -68,13 +68,20 @@ const recalculateState = (data) => {
     console.log('>>> Expected per member:', expected);
 
     // Initialize member stats - UPDATE ALL MEMBERS
-    // Initialize member stats - UPDATE ALL MEMBERS
     data.members.forEach(m => {
         // Auto-fix missing ID
         if (!m.id) m.id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
 
-        m.expectedContribution = expected;
-        m.personal = 0; // Reset personal expenses for recalculation
+        // Only update expected contribution if NOT custom
+        if (!m.customExpected) {
+            m.expectedContribution = expected;
+        }
+
+        // Only reset personal expenses if NOT custom
+        if (!m.customPersonal) {
+            m.personal = 0; // Reset personal expenses for recalculation
+        }
+
         if (typeof m.reimbursed !== 'number') m.reimbursed = 0; // Track reimbursements
         if (typeof m.actualContribution !== 'number') m.actualContribution = 0;
     });
@@ -87,9 +94,10 @@ const recalculateState = (data) => {
         totalExpenses += amount;
 
         // Track who paid for the expense (for display/tracking)
+        // Only add to personal if NOT custom
         if (e.paidBy && e.paidBy !== 'all_members') {
             const member = data.members.find(m => m.id === e.paidBy);
-            if (member) {
+            if (member && !member.customPersonal) {
                 member.personal += amount;
             }
         }
@@ -102,7 +110,7 @@ const recalculateState = (data) => {
     data.members.forEach(m => {
         const actual = m.actualContribution || 0;
         // Remaining contribution is what the member still owes based on expected amount
-        m.remainingContribution = Math.max(expected - actual, 0);
+        m.remainingContribution = Math.max(m.expectedContribution - actual, 0);
 
         // Net Personal = Total Personal Paid - Reimbursed Amount
         const netPersonal = Math.max(m.personal - m.reimbursed, 0);
@@ -112,7 +120,7 @@ const recalculateState = (data) => {
         const balance = actual + netPersonal - expenseShare;
 
         m.balance = Math.round(balance * 100) / 100;
-        m.personal = Math.round(netPersonal * 100) / 100; // Display outstanding personal amount
+        // m.personal is already set (either manually or calculated)
     });
 
     console.log('>>> After recalc, members:', data.members.map(m => ({ name: m.name, expected: m.expectedContribution })));
@@ -120,6 +128,52 @@ const recalculateState = (data) => {
 };
 
 // ---------- API Endpoints ---------- //
+
+// Update member details (Admin only)
+app.post('/api/members/update', (req, res) => {
+    const { id, name, expectedContribution, actualContribution, personal, customExpected, customPersonal } = req.body;
+    const data = readData();
+    const member = data.members.find(m => m.id === id);
+
+    console.log('>>> Member Update Request:', { id, name, expectedContribution, actualContribution, personal, customExpected, customPersonal });
+
+    if (!member) return res.status(404).json({ message: 'Member not found' });
+
+    console.log('>>> Before update - Member name:', member.name);
+
+    // Update name if provided
+    if (name && name.trim()) {
+        member.name = name.trim();
+        console.log('>>> After update - Member name:', member.name);
+    } else {
+        console.log('>>> Name not updated - name value:', name);
+    }
+
+    // Update fields
+    if (customExpected) {
+        member.customExpected = true;
+        member.expectedContribution = parseFloat(expectedContribution) || 0;
+    } else {
+        member.customExpected = false;
+        // Will be recalculated
+    }
+
+    if (customPersonal) {
+        member.customPersonal = true;
+        member.personal = parseFloat(personal) || 0;
+    } else {
+        member.customPersonal = false;
+        // Will be recalculated
+    }
+
+    member.actualContribution = parseFloat(actualContribution) || 0;
+
+    recalculateState(data);
+    writeData(data);
+
+    console.log('>>> Final member data:', member);
+    res.json({ message: 'Member updated successfully', member, data });
+});
 
 // Get full trip data
 app.get('/api/trip', (req, res) => {

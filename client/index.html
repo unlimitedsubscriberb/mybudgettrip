@@ -513,6 +513,67 @@
 
 
 
+        <!-- Edit Member Modal -->
+        <div id="editMemberModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Edit Member Details</h3>
+                    <button class="icon-button" onclick="tripManager.hideEditMemberModal()">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+
+                <form id="editMemberForm" onsubmit="tripManager.handleEditMemberSubmit(event)">
+                    <input type="hidden" id="editMemberId">
+
+                    <div class="form-group">
+                        <label for="editMemberName">Member Name</label>
+                        <input type="text" id="editMemberName" required>
+                        <small style="color: var(--text-secondary);">You can change the member's name</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editExpected">Expected Contribution (₹)</label>
+                        <input type="number" id="editExpected" step="0.01" required
+                            onchange="document.getElementById('customExpected').checked = true;">
+                        <label class="checkbox-label" style="margin-top: 0.5rem;">
+                            <input type="checkbox" id="customExpected">
+                            Lock this value (prevent auto-recalculation)
+                        </label>
+                        <small style="color: var(--text-secondary); font-size: 0.85rem;">Checkbox auto-checks when you
+                            change the amount</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editPaid">Paid Amount (₹)</label>
+                        <input type="number" id="editPaid" step="0.01" required>
+                        <small style="color: var(--text-secondary);">Total amount contributed by this member</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editPersonal">Personal Expenses (₹)</label>
+                        <input type="number" id="editPersonal" step="0.01" required>
+                        <label class="checkbox-label" style="margin-top: 0.5rem;">
+                            <input type="checkbox" id="customPersonal">
+                            Lock this value (prevent auto-recalculation)
+                        </label>
+                        <small style="color: var(--text-secondary);">Expenses paid only for this member</small>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="google-button secondary"
+                            onclick="tripManager.hideEditMemberModal()">
+                            Cancel
+                        </button>
+                        <button type="submit" class="google-button primary">
+                            <span class="material-icons">save</span>
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- Edit Trip Modal -->
         <div id="editTripModal" class="modal">
             <div class="modal-content">

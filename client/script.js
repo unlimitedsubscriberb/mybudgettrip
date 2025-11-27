@@ -134,6 +134,12 @@ class TripBudgetManager {
                 }
             });
         });
+
+        // Edit Member Form
+        const editMemberForm = document.getElementById('editMemberForm');
+        if (editMemberForm) {
+            editMemberForm.addEventListener('submit', (e) => this.handleEditMemberSubmit(e));
+        }
     }
 
     // --- Navigation & Views ---
@@ -818,28 +824,27 @@ class TripBudgetManager {
         const balance = Math.round(member.balance * 100) / 100;
         const balanceClass = balance >= 0 ? 'positive' : 'negative';
 
-        // Admin delete button
-        const deleteBtn = this.currentUser && this.currentUser.role === 'admin' ? `
-            <button class="icon-button delete-btn" onclick="tripManager.deleteMember('${member.id}')">
-                <span class="material-icons">delete</span>
-            </button>` : '';
-
-        // Admin Badge (First member is always Admin)
-        const isAdminMember = index === 0;
-        const adminBadge = isAdminMember ? '<span class="badge-admin" style="background:var(--error-color); color:white; padding:2px 6px; border-radius:4px; font-size:0.7rem; margin-left:8px;">Admin</span>' : '';
+        // Admin action buttons
+        const actionButtons = this.currentUser && this.currentUser.role === 'admin' ? `
+            <div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                <button class="icon-button" onclick="tripManager.openEditMemberModal('${member.id}')" title="Edit Member" style="background: rgba(33, 150, 243, 0.1); color: var(--primary-color);">
+                    <span class="material-icons">edit</span>
+                </button>
+                <button class="icon-button delete-btn" onclick="tripManager.deleteMember('${member.id}')" title="Delete Member" style="background: rgba(255,0,0,0.1); color: var(--error-color);">
+                    <span class="material-icons">delete</span>
+                </button>
+            </div>` : '';
 
         card.innerHTML = `
-            <div class="member-header">
-                <div class="member-info">
-                    <div class="member-avatar">${member.name.charAt(0).toUpperCase()}</div>
-                    <div class="member-details">
-                        <h4>${member.name} ${adminBadge}</h4>
-                        <div class="member-status">${remaining > 0 ? 'Pending payment' : 'Settled'}</div>
-                    </div>
+            <div class="member-header" style="position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 1rem;">
+                <div class="member-info" style="width: 100%;">
+                    <div class="member-name" style="font-weight: 600; font-size: 1.2rem;">${member.name}</div>
+                    <div class="member-role" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">${member.role === 'admin' ? 'Admin' : 'Member'}</div>
                 </div>
-                ${deleteBtn}
+                ${actionButtons}
             </div>
-            <div class="member-stats-grid">
+            
+            <div class="member-stats" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 1rem;">
                 <div class="stat-item">
                     <div class="label">Expected</div>
                     <div class="amount">₹${expected}</div>
@@ -849,25 +854,23 @@ class TripBudgetManager {
                     <div class="amount positive">₹${paid}</div>
                 </div>
                 <div class="stat-item">
-                    <div class="label">Unpaid Pay</div>
+                    <div class="label">Unpaid</div>
                     <div class="amount negative">₹${remaining}</div>
                 </div>
                 <div class="stat-item">
                     <div class="label">Balance</div>
                     <div class="amount ${balanceClass}">₹${balance}</div>
                 </div>
-                <div class="stat-item">
-                    <div class="label">Personal</div>
+                <div class="stat-item" style="grid-column: span 2;">
+                    <div class="label">Personal Expenses</div>
                     <div class="amount">₹${member.personal || 0}</div>
                 </div>
             </div>
             
-            </div>
-            
             <div class="member-actions" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
                 ${(this.currentUser && (this.currentUser.id === member.id || this.currentUser.role === 'admin')) ? `
-                <div class="input-group" style="display: flex; gap: 0.5rem;">
-                    <input type="number" id="contrib-${member.id}" placeholder="Amount" style="width: 100px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 8px;">
+                <div class="input-group" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="number" id="contrib-${member.id}" placeholder="Amount" style="width: 80px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 8px;">
                     <button class="google-button primary small" onclick="tripManager.addContribution('${member.id}', ${remaining})">
                         Pay
                     </button>
@@ -1105,6 +1108,7 @@ class TripBudgetManager {
     }
     hideMemberModal() { document.getElementById('memberModal').style.display = 'none'; }
     showMemberModal() { document.getElementById('memberModal').style.display = 'flex'; }
+    hideEditMemberModal() { document.getElementById('editMemberModal').style.display = 'none'; }
     hideEditTripModal() { document.getElementById('editTripModal').style.display = 'none'; }
     editTripDetails() {
         if (this.currentUser.role !== 'admin') {
@@ -1190,6 +1194,79 @@ class TripBudgetManager {
         } catch (error) {
             console.error('Edit trip error:', error);
             this.showNotification('Error updating trip', 'error');
+        }
+    }
+
+    openEditMemberModal(memberId) {
+        const member = this.tripData.members.find(m => m.id === memberId);
+        if (!member) return;
+
+        document.getElementById('editMemberId').value = member.id;
+        document.getElementById('editMemberName').value = member.name;
+        document.getElementById('editExpected').value = member.expectedContribution;
+        document.getElementById('editPaid').value = member.actualContribution;
+        document.getElementById('editPersonal').value = member.personal;
+
+        document.getElementById('customExpected').checked = member.customExpected || false;
+        document.getElementById('customPersonal').checked = member.customPersonal || false;
+
+        document.getElementById('editMemberModal').style.display = 'flex';
+    }
+
+    async handleEditMemberSubmit(e) {
+        e.preventDefault();
+        const id = document.getElementById('editMemberId').value;
+        const name = document.getElementById('editMemberName').value.trim();
+        const expectedContribution = parseFloat(document.getElementById('editExpected').value);
+        const actualContribution = parseFloat(document.getElementById('editPaid').value);
+        const personal = parseFloat(document.getElementById('editPersonal').value);
+        const customExpected = document.getElementById('customExpected').checked;
+        const customPersonal = document.getElementById('customPersonal').checked;
+
+        if (!name) {
+            this.showNotification('Please enter a member name', 'error');
+            return;
+        }
+
+        console.log('Updating member:', { id, name, expectedContribution, actualContribution, personal, customExpected, customPersonal });
+
+        try {
+            const response = await fetch('/api/members/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id,
+                    name,
+                    expectedContribution,
+                    actualContribution,
+                    personal,
+                    customExpected,
+                    customPersonal
+                })
+            });
+
+            const result = await response.json();
+            console.log('Update response:', result);
+
+            if (response.ok) {
+                // If the edited member is the current user, update localStorage
+                if (this.currentUser && this.currentUser.id === id) {
+                    this.currentUser.name = name;
+                    localStorage.setItem('tripUser', JSON.stringify(this.currentUser));
+                }
+
+                this.showNotification('Member updated successfully', 'success');
+                this.hideEditMemberModal();
+                // Force reload from server
+                await this.loadFromStorage();
+                // Update display (this will refresh the dashboard title)
+                this.updateDisplay();
+            } else {
+                this.showNotification(result.message || 'Failed to update member', 'error');
+            }
+        } catch (error) {
+            console.error('Update member error:', error);
+            this.showNotification('Error updating member', 'error');
         }
     }
 
@@ -1438,11 +1515,14 @@ class TripBudgetManager {
     async shareTripDetails() {
         const code = this.tripData.tripCode;
         const adminName = this.tripData.members.length > 0 ? this.tripData.members[0].name : 'Admin';
+        const tripName = this.tripData.tripName || 'trip';
         const url = window.location.origin;
-        const text = `🌄 Let's make trip planning simple and fun!
-Use Trip Budget Manager to track your shared expenses.
-Join ${adminName}'s trip with this code ➝ ${code} 💬💰
-🔗 Link: ${url}`;
+        const text = `🗺️ Ready to make trip planning fun, simple, and stress-free?
+With Trip Budget Manager, you can manage shared expenses, stay organized, and enjoy more time exploring!
+Join ${adminName}'s ${tripName} using the code ➝ ${code} 😎💳
+🔗 Jump in: ${url}
+
+Let's go make moments that matter! 🌅💫`;
 
         if (navigator.share) {
             try {
@@ -1568,3 +1648,14 @@ function updateDarkModeIcon(isDarkMode) {
 
 // Initialize Dark Mode
 checkDarkMode();
+
+// Auto-refresh page every 5 minutes to keep data synchronized
+// This ensures all users see the latest updates from other members
+const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+setInterval(() => {
+    console.log('Auto-refreshing page to sync latest data...');
+    location.reload();
+}, AUTO_REFRESH_INTERVAL);
+
+console.log('✅ Auto-refresh enabled: Page will reload every 5 minutes');
