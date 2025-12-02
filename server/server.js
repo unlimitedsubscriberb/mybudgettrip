@@ -225,7 +225,7 @@ app.post('/api/trip', async (req, res) => {
         res.json({ message: 'Trip details updated', data: trip });
     } catch (error) {
         console.error('Setup trip error:', error);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Server error: ' + error.message });
     }
 });
 
