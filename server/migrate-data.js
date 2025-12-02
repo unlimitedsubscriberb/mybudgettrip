@@ -12,10 +12,7 @@ async function migrateData() {
         console.log('🔄 Starting data migration...');
 
         // Connect to MongoDB
-        await mongoose.connect(MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        });
+        await mongoose.connect(MONGODB_URI);
         console.log('✅ Connected to MongoDB');
 
         // Read old data.json file

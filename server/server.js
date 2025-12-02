@@ -72,6 +72,7 @@ const getCurrentTrip = async () => {
  * Recalculate each member's expected contribution, remaining contribution, and balance.
  */
 const recalculateState = (data) => {
+    if (!data.members) data.members = [];
     const actualMemberCount = data.members.length;
 
     console.log('>>> recalculateState called');
