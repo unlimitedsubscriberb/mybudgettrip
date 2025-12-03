@@ -314,9 +314,11 @@ class TripBudgetManager {
                 });
             }
 
-            // 3. Reload page to ensure UI is synced
-            this.showNotification('Trip created! Reloading...', 'success');
-            setTimeout(() => window.location.reload(), 1000);
+            // 3. Wait a moment for data to propagate, then load and show dashboard
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await this.loadFromStorage();
+            this.showAppSection();
+            this.showNotification('Trip created successfully!', 'success');
 
         } catch (error) {
             console.error('Setup error:', error);
