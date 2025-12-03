@@ -340,7 +340,6 @@ class TripBudgetManager {
         const title = document.getElementById('expenseTitle').value.trim();
         const amount = parseFloat(document.getElementById('expenseAmount').value);
         const category = document.getElementById('expenseCategory').value;
-        const paidBy = document.getElementById('paidBySelect').value;
         const description = document.getElementById('expenseDescription').value.trim();
 
         // Collect selected members for splitting
@@ -356,13 +355,13 @@ class TripBudgetManager {
             splitBetween = Array.from(memberCheckboxes).map(cb => cb.value);
         }
 
-        if (!title || !amount || !category || !paidBy || splitBetween.length === 0) {
+        if (!title || !amount || !category || splitBetween.length === 0) {
             this.showNotification('Please fill all required fields and select members', 'error');
             return;
         }
 
         const expense = {
-            title, amount, category, paidBy, splitBetween, description,
+            title, amount, category, splitBetween, description,
             timestamp: new Date().toISOString()
         };
 
@@ -505,11 +504,10 @@ class TripBudgetManager {
             return;
         }
 
-        // Find members who are owed money (net personal > 0 OR overpaid > 0)
+        // Find members who are owed money (personal > 0 OR overpaid > 0)
         const creditors = this.tripData.members.filter(m => {
-            const netPersonal = (m.personal || 0) - (m.reimbursed || 0);
             const overpaid = Math.max(m.actualContribution - m.expectedContribution, 0);
-            return netPersonal > 0.01 || overpaid > 0.01;
+            return m.personal > 0 || overpaid > 0.01; // Use 0.01 tolerance for float
         });
 
         if (creditors.length === 0) {
@@ -528,19 +526,18 @@ class TripBudgetManager {
             let metaHtml = '';
 
             // Case 1: Personal Expenses (Owed to member)
-            const netPersonal = (m.personal || 0) - (m.reimbursed || 0);
-            if (netPersonal > 0.01) {
-                metaHtml += `<div>Outstanding Personal: ₹${Math.round(netPersonal * 100) / 100}</div>`;
+            if (m.personal > 0) {
+                metaHtml += `<div>Personal Expenses: ₹${m.personal}</div>`;
                 actionHtml += `
-                    <button class="google-button primary small" onclick="tripManager.handleSettlement('${m.id}', ${netPersonal})">
-                        Settle Personal (Pay ₹${Math.round(netPersonal * 100) / 100})
+                    <button class="google-button primary small" onclick="tripManager.handleSettlement('${m.id}', ${m.personal})">
+                        Settle Personal (Pay ₹${m.personal})
                     </button>
                 `;
             }
 
             // Case 2: Overpaid Contribution (Refund to member)
             const overpaid = Math.max(m.actualContribution - m.expectedContribution, 0);
-            if (overpaid > 0.01) {
+            if (overpaid > 0) {
                 metaHtml += `<div>Overpaid Contribution: ₹${Math.round(overpaid * 100) / 100}</div>`;
                 actionHtml += `
                     <button class="google-button secondary small" onclick="tripManager.handleRefund('${m.id}', ${overpaid})" style="margin-top: 5px;">
@@ -1184,13 +1181,13 @@ class TripBudgetManager {
     }
 
     updateMemberSelect() {
-        const select = document.getElementById('paidBySelect');
+        const select = document.getElementById('paidBy');
         if (!select) return;
 
         // Save current selection
         const current = select.value;
 
-        select.innerHTML = '<option value="pool">🏦 From Pool (Admin)</option>';
+        select.innerHTML = '<option value="">Select Member</option><option value="all_members">👥 All Members (Equal Distribution)</option>';
         this.tripData.members.forEach(m => {
             const opt = document.createElement('option');
             opt.value = m.id;
