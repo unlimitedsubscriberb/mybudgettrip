@@ -871,12 +871,17 @@ class TripBudgetManager {
             
             <div class="member-actions" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
                 ${(this.currentUser && (this.currentUser.id === member.id || this.currentUser.role === 'admin')) ? `
-                <div class="input-group" style="display: flex; gap: 0.5rem; align-items: center;">
-                    <input type="number" id="contrib-${member.id}" placeholder="Amount" style="width: 80px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 8px;">
+                <div class="input-group" style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                    <input type="number" id="contrib-${member.id}" placeholder="Amount" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 8px;">
                     <button class="google-button primary small" onclick="tripManager.addContribution('${member.id}', ${remaining})">
                         Pay
                     </button>
-                </div>` : ''}
+                </div>
+                ${this.currentUser.role === 'admin' ? `
+                <button class="google-button secondary small" onclick="tripManager.shareMemberFinancials('${member.id}')" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <span class="material-icons" style="font-size: 1rem;">share</span>
+                    Share Financial Details
+                </button>` : ''}` : ''}
             </div>
         `;
         return card;
