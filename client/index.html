@@ -82,6 +82,78 @@
                 font-size: 1rem !important;
             }
         }
+
+        /* Custom Multiselect Styles */
+        .custom-multiselect {
+            position: relative;
+            width: 100%;
+        }
+
+        .multiselect-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            background: var(--surface-color);
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .multiselect-trigger:hover {
+            border-color: var(--primary-color);
+        }
+
+        .multiselect-trigger .material-icons {
+            color: var(--text-secondary);
+            transition: transform 0.2s;
+        }
+
+        .multiselect-trigger.active .material-icons {
+            transform: rotate(180deg);
+        }
+
+        .multiselect-options {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin-top: 0.25rem;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-medium);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .multiselect-option {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .multiselect-option:hover {
+            background-color: rgba(66, 133, 244, 0.04);
+        }
+
+        .multiselect-option input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary-color);
+            cursor: pointer;
+        }
+
+        .multiselect-option span {
+            flex: 1;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
     </style>
 </head>
 
@@ -422,11 +494,22 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="paidBy">Paid By</label>
-                                    <select id="paidBy" required>
-                                        <option value="">Select Member</option>
-                                        <option value="all_members">👥 All Members (Equal Distribution)</option>
-                                    </select>
+                                    <label for="splitBetween">Split Between</label>
+                                    <div class="custom-multiselect" id="splitBetweenContainer">
+                                        <div class="multiselect-trigger" onclick="toggleSplitDropdown()">
+                                            <span id="splitBetweenLabel">All Members</span>
+                                            <span class="material-icons">arrow_drop_down</span>
+                                        </div>
+                                        <div class="multiselect-options" id="splitBetweenOptions"
+                                            style="display: none;">
+                                            <label class="multiselect-option">
+                                                <input type="checkbox" value="all_members" id="splitAllMembers" checked
+                                                    onchange="handleSplitAllChange()">
+                                                <span>👥 All Members</span>
+                                            </label>
+                                            <div id="splitMembersList"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-group">

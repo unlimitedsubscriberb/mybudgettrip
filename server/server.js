@@ -151,32 +151,47 @@ const recalculateState = (data) => {
         if (typeof m.actualContribution !== 'number') m.actualContribution = 0;
     });
 
-    // Calculate totals
-    let totalExpenses = 0;
+    // Calculate individual expense shares for each member
+    data.members.forEach(m => {
+        m.expenseShare = 0; // Initialize expense share
+    });
 
     data.expenses.forEach(e => {
         const amount = parseFloat(e.amount) || 0;
-        totalExpenses += amount;
 
-        if (e.paidBy && e.paidBy !== 'all_members') {
-            const member = data.members.find(m => m.id === e.paidBy);
-            if (member && !member.customPersonal) {
-                member.personal += amount;
+        // Determine which members to split this expense between
+        let splitMembers = [];
+        if (e.splitBetween && Array.isArray(e.splitBetween) && e.splitBetween.length > 0) {
+            // New format: explicit splitBetween array
+            splitMembers = e.splitBetween;
+        } else if (e.paidBy) {
+            // Legacy format: convert paidBy to splitBetween
+            if (e.paidBy === 'all_members') {
+                splitMembers = data.members.map(m => m.id);
+            } else {
+                splitMembers = [e.paidBy];
             }
         }
-    });
 
-    const expenseShare = actualMemberCount > 0 ? totalExpenses / actualMemberCount : 0;
+        // Split expense among selected members
+        if (splitMembers.length > 0) {
+            const sharePerMember = amount / splitMembers.length;
+            splitMembers.forEach(memberId => {
+                const member = data.members.find(m => m.id === memberId);
+                if (member) {
+                    member.expenseShare += sharePerMember;
+                }
+            });
+        }
+    });
 
     // Finalize member balances
     data.members.forEach(m => {
         const actual = m.actualContribution || 0;
         m.remainingContribution = Math.max(m.expectedContribution - actual, 0);
 
-        const netPersonal = Math.max(m.personal - m.reimbursed, 0);
-
         if (!m.customBalance) {
-            const balance = actual + netPersonal - expenseShare;
+            const balance = actual - m.expenseShare;
             m.balance = Math.round(balance * 100) / 100;
         }
     });

@@ -340,16 +340,28 @@ class TripBudgetManager {
         const title = document.getElementById('expenseTitle').value.trim();
         const amount = parseFloat(document.getElementById('expenseAmount').value);
         const category = document.getElementById('expenseCategory').value;
-        const paidBy = document.getElementById('paidBy').value;
         const description = document.getElementById('expenseDescription').value.trim();
 
-        if (!title || !amount || !category || !paidBy) {
-            this.showNotification('Please fill all required fields', 'error');
+        // Collect selected members for splitting
+        const allCheckbox = document.getElementById('splitAllMembers');
+        const memberCheckboxes = document.querySelectorAll('#splitMembersList input[type="checkbox"]:checked');
+
+        let splitBetween = [];
+        if (allCheckbox && allCheckbox.checked) {
+            // Split among all members
+            splitBetween = this.tripData.members.map(m => m.id);
+        } else {
+            // Split among selected members
+            splitBetween = Array.from(memberCheckboxes).map(cb => cb.value);
+        }
+
+        if (!title || !amount || !category || splitBetween.length === 0) {
+            this.showNotification('Please fill all required fields and select members', 'error');
             return;
         }
 
         const expense = {
-            title, amount, category, paidBy, description,
+            title, amount, category, splitBetween, description,
             timestamp: new Date().toISOString()
         };
 
@@ -372,6 +384,9 @@ class TripBudgetManager {
             if (response.ok) {
                 this.showNotification(msg, 'success');
                 document.getElementById('expenseForm').reset();
+                // Reset to "All Members" after form reset
+                if (allCheckbox) allCheckbox.checked = true;
+                if (typeof updateSplitLabel === 'function') updateSplitLabel();
                 await this.loadFromStorage();
             }
         } catch (error) {
@@ -456,6 +471,9 @@ class TripBudgetManager {
         this.displayMembers();
         this.displayExpenses();
         this.updateMemberSelect();
+        if (typeof populateSplitMembers === 'function') {
+            populateSplitMembers(this.tripData.members || []);
+        }
         this.updatePendingApprovals();
         this.updateSettlements(); // New
 
@@ -1743,3 +1761,91 @@ setInterval(() => {
 }, AUTO_REFRESH_INTERVAL);
 
 console.log('✅ Auto-refresh enabled: Page will reload every 5 minutes');
+
+// Multi-select dropdown functions
+function toggleSplitDropdown() {
+    const options = document.getElementById('splitBetweenOptions');
+    const trigger = document.querySelector('.multiselect-trigger');
+
+    if (options.style.display === 'none') {
+        options.style.display = 'block';
+        trigger.classList.add('active');
+    } else {
+        options.style.display = 'none';
+        trigger.classList.remove('active');
+    }
+}
+
+function handleSplitAllChange() {
+    const allCheckbox = document.getElementById('splitAllMembers');
+    const memberCheckboxes = document.querySelectorAll('#splitMembersList input[type="checkbox"]');
+
+    if (allCheckbox.checked) {
+        // Uncheck all individual members
+        memberCheckboxes.forEach(cb => cb.checked = false);
+    }
+
+    updateSplitLabel();
+}
+
+function handleMemberSplitChange() {
+    const allCheckbox = document.getElementById('splitAllMembers');
+    const memberCheckboxes = document.querySelectorAll('#splitMembersList input[type="checkbox"]');
+    const anyChecked = Array.from(memberCheckboxes).some(cb => cb.checked);
+
+    if (anyChecked) {
+        // Uncheck "All Members"
+        allCheckbox.checked = false;
+    } else {
+        // If no members selected, check "All Members"
+        allCheckbox.checked = true;
+    }
+
+    updateSplitLabel();
+}
+
+function updateSplitLabel() {
+    const allCheckbox = document.getElementById('splitAllMembers');
+    const memberCheckboxes = document.querySelectorAll('#splitMembersList input[type="checkbox"]');
+    const label = document.getElementById('splitBetweenLabel');
+
+    if (allCheckbox.checked) {
+        label.textContent = 'All Members';
+    } else {
+        const checkedMembers = Array.from(memberCheckboxes).filter(cb => cb.checked);
+        if (checkedMembers.length === 0) {
+            label.textContent = 'Select Members';
+        } else if (checkedMembers.length === 1) {
+            label.textContent = checkedMembers[0].nextElementSibling.textContent;
+        } else {
+            label.textContent = `${checkedMembers.length} Members Selected`;
+        }
+    }
+}
+
+function populateSplitMembers(members) {
+    const container = document.getElementById('splitMembersList');
+    if (!container) return;
+
+    container.innerHTML = '';
+    members.forEach(member => {
+        const label = document.createElement('label');
+        label.className = 'multiselect-option';
+        label.innerHTML = `
+            <input type="checkbox" value="${member.id}" onchange="handleMemberSplitChange()">
+            <span>${member.name}</span>
+        `;
+        container.appendChild(label);
+    });
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function (event) {
+    const container = document.getElementById('splitBetweenContainer');
+    if (container && !container.contains(event.target)) {
+        const options = document.getElementById('splitBetweenOptions');
+        const trigger = document.querySelector('.multiselect-trigger');
+        if (options) options.style.display = 'none';
+        if (trigger) trigger.classList.remove('active');
+    }
+});
