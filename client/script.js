@@ -826,6 +826,9 @@ class TripBudgetManager {
         // Admin action buttons
         const actionButtons = this.currentUser && this.currentUser.role === 'admin' ? `
             <div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                <button class="icon-button" onclick="tripManager.shareMemberDetails('${member.id}')" title="Share Member Details" style="background: rgba(76, 175, 80, 0.1); color: #4CAF50;">
+                    <span class="material-icons">share</span>
+                </button>
                 <button class="icon-button" onclick="tripManager.openEditMemberModal('${member.id}')" title="Edit Member" style="background: rgba(33, 150, 243, 0.1); color: var(--primary-color);">
                     <span class="material-icons">edit</span>
                 </button>
@@ -994,6 +997,24 @@ class TripBudgetManager {
             console.error('Delete error:', error);
             this.showNotification('Error connecting to server', 'error');
         }
+    }
+
+    // Share member details (login credentials)
+    shareMemberDetails(memberId) {
+        const member = this.tripData.members.find(m => m.id === memberId);
+        if (!member) return;
+
+        const tripName = this.tripData.tripName || 'Trip';
+        const tripCode = this.tripData.tripCode;
+        const appUrl = 'https://mybudgettrip.onrender.com/';
+
+        const message = `Join the *${tripName}* to check dashboard:\n\n` +
+            `Username: ${member.name}\n` +
+            `Password: ${tripCode}\n\n` +
+            `Link: ${appUrl}`;
+
+        const encodedMessage = encodeURIComponent(message);
+        window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
     }
 
     // Delete an expense
