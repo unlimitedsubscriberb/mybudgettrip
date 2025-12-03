@@ -209,6 +209,18 @@ app.post('/api/trip', async (req, res) => {
     try {
         const trip = await getCurrentTrip();
 
+        // If clearData is requested (New Trip Setup)
+        if (req.body.clearData) {
+            console.log('>>> Clearing old trip data for new setup');
+            trip.members = [];
+            trip.expenses = [];
+            trip.pendingExpenses = [];
+            trip.pendingMembers = [];
+            trip.pendingContributions = [];
+            trip.pendingBudgetRequests = [];
+            trip.pendingDeletions = [];
+        }
+
         trip.tripName = tripName;
         trip.budget = parseFloat(budget) || 0;
         trip.memberCount = parseInt(memberCount) || 0;

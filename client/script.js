@@ -291,10 +291,7 @@ class TripBudgetManager {
         localStorage.setItem('tripUser', JSON.stringify(this.currentUser));
 
         try {
-            // 1. Reset Data
-            await fetch('/api/reset', { method: 'POST' });
-
-            // 2. Setup Trip
+            // 1. Setup Trip (with clearData flag to reset old data atomically)
             await fetch('/api/trip', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -303,23 +300,23 @@ class TripBudgetManager {
                     budget: budgetAmount,
                     memberCount: memberCount,
                     tripDate: tripDateTime,
-                    adminPin: formData.get('adminPin') // Send Admin PIN
+                    adminPin: formData.get('adminPin'),
+                    clearData: true // Clear old data before setup
                 })
             });
 
-            // 3. Add Members
-            for (const member of members) {
+            // 2. Add Admin Member
+            if (members.length > 0) {
                 await fetch('/api/members', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(member)
+                    body: JSON.stringify(members[0])
                 });
             }
 
-            // 4. Load Data & Show Dashboard
-            await this.loadFromStorage();
-            this.showAppSection();
-            this.showNotification('Trip created successfully!', 'success');
+            // 3. Reload page to ensure UI is synced
+            this.showNotification('Trip created! Reloading...', 'success');
+            setTimeout(() => window.location.reload(), 1000);
 
         } catch (error) {
             console.error('Setup error:', error);
