@@ -839,8 +839,8 @@ class TripBudgetManager {
 
         card.innerHTML = `
             <div class="member-header" style="position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 1rem;">
-                <div class="member-info" style="width: 100%;">
-                    <div class="member-name" style="font-weight: 600; font-size: 1.2rem;">${member.name}</div>
+                <div class="member-info" style="width: 100%; padding-right: 120px;">
+                    <div class="member-name" style="font-weight: 600; font-size: 1.2rem; word-wrap: break-word;">${member.name}</div>
                     <div class="member-role" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">${member.role === 'admin' ? 'Admin' : 'Member'}</div>
                 </div>
                 ${actionButtons}
