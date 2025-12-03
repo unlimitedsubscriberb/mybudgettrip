@@ -1205,9 +1205,11 @@ class TripBudgetManager {
         document.getElementById('editExpected').value = member.expectedContribution;
         document.getElementById('editPaid').value = member.actualContribution;
         document.getElementById('editPersonal').value = member.personal;
+        document.getElementById('editBalance').value = member.balance || 0;
 
         document.getElementById('customExpected').checked = member.customExpected || false;
         document.getElementById('customPersonal').checked = member.customPersonal || false;
+        document.getElementById('customBalance').checked = member.customBalance || false;
 
         document.getElementById('editMemberModal').style.display = 'flex';
     }
@@ -1219,15 +1221,17 @@ class TripBudgetManager {
         const expectedContribution = parseFloat(document.getElementById('editExpected').value);
         const actualContribution = parseFloat(document.getElementById('editPaid').value);
         const personal = parseFloat(document.getElementById('editPersonal').value);
+        const balance = parseFloat(document.getElementById('editBalance').value);
         const customExpected = document.getElementById('customExpected').checked;
         const customPersonal = document.getElementById('customPersonal').checked;
+        const customBalance = document.getElementById('customBalance').checked;
 
         if (!name) {
             this.showNotification('Please enter a member name', 'error');
             return;
         }
 
-        console.log('Updating member:', { id, name, expectedContribution, actualContribution, personal, customExpected, customPersonal });
+        console.log('Updating member:', { id, name, expectedContribution, actualContribution, personal, balance, customExpected, customPersonal, customBalance });
 
         try {
             const response = await fetch('/api/members/update', {
@@ -1239,8 +1243,10 @@ class TripBudgetManager {
                     expectedContribution,
                     actualContribution,
                     personal,
+                    balance,
                     customExpected,
-                    customPersonal
+                    customPersonal,
+                    customBalance
                 })
             });
 
