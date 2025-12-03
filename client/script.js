@@ -1022,6 +1022,59 @@ class TripBudgetManager {
         window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
     }
 
+    // Share member financial details
+    shareMemberFinancials(memberId) {
+        const member = this.tripData.members.find(m => m.id === memberId);
+        if (!member) return;
+
+        const tripName = this.tripData.tripName || 'Trip';
+        const expected = Math.round(member.expectedContribution * 100) / 100;
+        const paid = Math.round(member.actualContribution * 100) / 100;
+        const remaining = Math.round(member.remainingContribution * 100) / 100;
+        const balance = Math.round(member.balance * 100) / 100;
+        const personal = Math.round((member.personal || 0) * 100) / 100;
+
+        const message = `*${tripName}* - Financial Summary\n\n` +
+            `👤 Member: ${member.name}\n\n` +
+            `💰 Expected: ₹${expected}\n` +
+            `✅ Paid: ₹${paid}\n` +
+            `❌ Unpaid: ₹${remaining}\n` +
+            `📊 Balance: ₹${balance}\n` +
+            `🛍️ Personal Expenses: ₹${personal}`;
+
+        const encodedMessage = encodeURIComponent(message);
+        window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+    }
+
+    // Share all members' financial details
+    shareAllMembersFinancials() {
+        if (!this.tripData.members || this.tripData.members.length === 0) {
+            this.showNotification('No members to share', 'error');
+            return;
+        }
+
+        const tripName = this.tripData.tripName || 'Trip';
+        let message = `*${tripName}* - All Members Financial Summary\n\n`;
+
+        this.tripData.members.forEach((member, index) => {
+            const expected = Math.round(member.expectedContribution * 100) / 100;
+            const paid = Math.round(member.actualContribution * 100) / 100;
+            const remaining = Math.round(member.remainingContribution * 100) / 100;
+            const balance = Math.round(member.balance * 100) / 100;
+            const personal = Math.round((member.personal || 0) * 100) / 100;
+
+            message += `${index + 1}. *${member.name}*\n`;
+            message += `   💰 Expected: ₹${expected}\n`;
+            message += `   ✅ Paid: ₹${paid}\n`;
+            message += `   ❌ Unpaid: ₹${remaining}\n`;
+            message += `   📊 Balance: ₹${balance}\n`;
+            message += `   🛍️ Personal: ₹${personal}\n\n`;
+        });
+
+        const encodedMessage = encodeURIComponent(message);
+        window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+    }
+
     // Delete an expense
     async deleteExpense(id) {
         if (!confirm('Delete this expense?')) return;
