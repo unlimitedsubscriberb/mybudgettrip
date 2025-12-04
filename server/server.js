@@ -366,6 +366,20 @@ app.post('/api/members/update', (req, res) => {
     res.json({ message: 'Member updated successfully', member, data });
 });
 
+// Update member activity (lastActive timestamp)
+app.post('/api/members/activity', (req, res) => {
+    const { memberId } = req.body;
+    const data = readData();
+    const member = data.members.find(m => m.id === memberId);
+
+    if (member) {
+        member.lastActive = new Date().toISOString();
+        writeData(data);
+    }
+
+    res.json({ success: true });
+});
+
 // Member contribution update
 app.post('/api/members/contribute', (req, res) => {
     const { id, amount, isAdmin } = req.body;

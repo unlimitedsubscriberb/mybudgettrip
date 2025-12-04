@@ -52,6 +52,15 @@ class TripBudgetManager {
             const response = await fetch('/api/trip');
             const data = await response.json();
 
+            // Update member's lastActive timestamp if logged in
+            if (this.currentUser && this.currentUser.id) {
+                fetch('/api/members/activity', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ memberId: this.currentUser.id })
+                }).catch(err => console.log('Activity update failed:', err));
+            }
+
             // Only update if data has changed to avoid UI flickering and input reset
             if (JSON.stringify(data) !== JSON.stringify(this.tripData)) {
                 this.tripData = data;
@@ -478,6 +487,7 @@ class TripBudgetManager {
         this.updatePendingApprovals();
         this.updateSettlements(); // New
 
+
         // Role-based UI visibility
         const isAdmin = this.currentUser && this.currentUser.role === 'admin';
 
@@ -492,6 +502,10 @@ class TripBudgetManager {
         // Show/Hide Reset Button
         const resetBtn = document.getElementById('resetAppBtn');
         if (resetBtn) resetBtn.style.display = isAdmin ? 'flex' : 'none';
+
+        // Show/Hide Logout Button (visible to all logged-in users)
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) logoutBtn.style.display = this.currentUser ? 'flex' : 'none';
     }
 
     updateSettlements() {
@@ -842,6 +856,11 @@ class TripBudgetManager {
         const balance = Math.round(member.balance * 100) / 100;
         const balanceClass = balance >= 0 ? 'positive' : 'negative';
 
+        // Check if member is online (lastActive within 5 minutes)
+        const isOnline = member.lastActive && (Date.now() - new Date(member.lastActive).getTime()) < 5 * 60 * 1000;
+        const statusColor = isOnline ? '#4CAF50' : '#f44336'; // Green or Red
+        const statusTitle = isOnline ? 'Online' : 'Offline';
+
         // Admin action buttons
         const actionButtons = this.currentUser && this.currentUser.role === 'admin' ? `
             <div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
@@ -859,7 +878,10 @@ class TripBudgetManager {
         card.innerHTML = `
             <div class="member-header" style="position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 1rem;">
                 <div class="member-info" style="width: 100%; padding-right: 120px;">
-                    <div class="member-name" style="font-weight: 600; font-size: 1.2rem; word-wrap: break-word;">${member.name}</div>
+                    <div class="member-name" style="font-weight: 600; font-size: 1.2rem; word-wrap: break-word; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <span style="width: 10px; height: 10px; border-radius: 50%; background: ${statusColor}; display: inline-block;" title="${statusTitle}"></span>
+                        ${member.name}
+                    </div>
                     <div class="member-role" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">${member.role === 'admin' ? 'Admin' : 'Member'}</div>
                 </div>
                 ${actionButtons}
@@ -1746,6 +1768,14 @@ function updateDarkModeIcon(isDarkMode) {
             text.textContent = isDarkMode ? 'Day Mode' : 'Night Mode';
         }
         btn.title = isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+    }
+}
+
+// Logout function
+function logout() {
+    if (confirm('Are you sure you want to logout?')) {
+        localStorage.removeItem('tripUser');
+        location.reload();
     }
 }
 
