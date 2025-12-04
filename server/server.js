@@ -153,20 +153,31 @@ const recalculateState = (data) => {
 
     // Calculate individual expense shares for each member
     data.members.forEach(m => {
-        m.expenseShare = 0; // Initialize expense share
+        m.expenseShare = 0; // Initialize expense share (what they owe)
+        if (!m.customPersonal) {
+            m.personal = 0; // Initialize personal (what they paid from pocket - needs reimbursement)
+        }
     });
 
     data.expenses.forEach(e => {
         const amount = parseFloat(e.amount) || 0;
 
-        // Determine which members to split this expense between
+        // Track who paid for this expense (for reimbursement)
+        if (e.paidBy && e.paidBy !== 'pool') {
+            const payer = data.members.find(m => m.id === e.paidBy);
+            if (payer && !payer.customPersonal) {
+                payer.personal += amount; // They paid from pocket, need reimbursement
+            }
+        }
+
+        // Determine which members to split this expense between (who owes)
         let splitMembers = [];
         if (e.splitBetween && Array.isArray(e.splitBetween) && e.splitBetween.length > 0) {
             // New format: explicit splitBetween array
             splitMembers = e.splitBetween;
         } else if (e.paidBy) {
             // Legacy format: convert paidBy to splitBetween
-            if (e.paidBy === 'all_members') {
+            if (e.paidBy === 'all_members' || e.paidBy === 'pool') {
                 splitMembers = data.members.map(m => m.id);
             } else {
                 splitMembers = [e.paidBy];
@@ -190,8 +201,10 @@ const recalculateState = (data) => {
         const actual = m.actualContribution || 0;
         m.remainingContribution = Math.max(m.expectedContribution - actual, 0);
 
+        const netPersonal = Math.max(m.personal - (m.reimbursed || 0), 0);
+
         if (!m.customBalance) {
-            const balance = actual - m.expenseShare;
+            const balance = actual + netPersonal - m.expenseShare;
             m.balance = Math.round(balance * 100) / 100;
         }
     });

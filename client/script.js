@@ -340,6 +340,7 @@ class TripBudgetManager {
         const title = document.getElementById('expenseTitle').value.trim();
         const amount = parseFloat(document.getElementById('expenseAmount').value);
         const category = document.getElementById('expenseCategory').value;
+        const paidBy = document.getElementById('paidBy').value;
         const description = document.getElementById('expenseDescription').value.trim();
 
         // Collect selected members for splitting
@@ -355,13 +356,13 @@ class TripBudgetManager {
             splitBetween = Array.from(memberCheckboxes).map(cb => cb.value);
         }
 
-        if (!title || !amount || !category || splitBetween.length === 0) {
+        if (!title || !amount || !category || !paidBy || splitBetween.length === 0) {
             this.showNotification('Please fill all required fields and select members', 'error');
             return;
         }
 
         const expense = {
-            title, amount, category, splitBetween, description,
+            title, amount, category, paidBy, splitBetween, description,
             timestamp: new Date().toISOString()
         };
 
@@ -1187,11 +1188,11 @@ class TripBudgetManager {
         // Save current selection
         const current = select.value;
 
-        select.innerHTML = '<option value="">Select Member</option><option value="all_members">👥 All Members (Equal Distribution)</option>';
+        select.innerHTML = '<option value="pool">🏦 From Pool (Admin/Collected Money)</option>';
         this.tripData.members.forEach(m => {
             const opt = document.createElement('option');
             opt.value = m.id;
-            opt.textContent = m.name;
+            opt.textContent = `👤 ${m.name} (Paid from Pocket)`;
             select.appendChild(opt);
         });
 
