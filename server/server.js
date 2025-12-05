@@ -416,7 +416,19 @@ app.post('/api/members/contribute', (req, res) => {
         return res.status(403).json({ message: 'Members must request contribution approval' });
     }
 
-    member.actualContribution = (member.actualContribution || 0) + contrib;
+    // Calculate remaining contribution needed
+    const remaining = Math.max(member.expectedContribution - (member.actualContribution || 0), 0);
+
+    // If paying more than remaining, add excess to personal
+    if (contrib > remaining && remaining > 0) {
+        const excess = contrib - remaining;
+        member.actualContribution = (member.actualContribution || 0) + remaining;
+        member.personal = (member.personal || 0) + excess;
+        console.log(`>>> Overpayment detected: ₹${excess} added to personal expenses`);
+    } else {
+        member.actualContribution = (member.actualContribution || 0) + contrib;
+    }
+
     recalculateState(data);
     writeData(data);
     res.json({ message: 'Contribution updated', member, data });

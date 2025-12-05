@@ -33,8 +33,8 @@ class TripBudgetManager {
 
         this.setupEventListeners();
 
-        // Poll for updates every 2 seconds
-        setInterval(() => this.loadFromStorage(), 2000);
+        // Poll for updates every 5 seconds (increased from 2s to prevent form interruptions)
+        setInterval(() => this.loadFromStorage(), 5000);
 
         // Set default datetime
         const now = new Date();
@@ -757,12 +757,22 @@ class TripBudgetManager {
             return;
         }
 
-        // Check for overpayment (unless Admin)
-        if (this.currentUser.role !== 'admin' && amount > remaining) {
-            if (confirm(`You cannot pay more than your remaining share (₹${remaining}).\n\nDo you want to request a Budget Increase to add this extra amount?`)) {
-                await this.requestBudgetIncrease(memberId);
+        // Check for overpayment
+        if (amount > remaining) {
+            const excess = amount - remaining;
+            const confirmMsg = `⚠️ Expected amount reached!\n\n` +
+                `Expected: ₹${remaining}\n` +
+                `You're paying: ₹${amount}\n` +
+                `Excess: ₹${excess}\n\n` +
+                `The excess amount (₹${excess}) will be added to Personal Expenses.\n\n` +
+                `Do you want to continue?`;
+
+            if (!confirm(confirmMsg)) {
+                return;
             }
-            return;
+
+            // If admin or confirmed, proceed with overpayment
+            // The backend will handle adding excess to personal
         }
 
         try {
@@ -1963,12 +1973,22 @@ function populateSplitMembers(members) {
     const container = document.getElementById('splitMembersList');
     if (!container) return;
 
+    // Save current checkbox states before clearing
+    const checkedStates = {};
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            checkedStates[cb.value] = true;
+        }
+    });
+
     container.innerHTML = '';
     members.forEach(member => {
         const label = document.createElement('label');
         label.className = 'multiselect-option';
+        const isChecked = checkedStates[member.id] ? 'checked' : '';
         label.innerHTML = `
-            <input type="checkbox" value="${member.id}" onchange="handleMemberSplitChange()">
+            <input type="checkbox" value="${member.id}" ${isChecked} onchange="handleMemberSplitChange()">
             <span>${member.name}</span>
         `;
         container.appendChild(label);
