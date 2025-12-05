@@ -1176,10 +1176,18 @@ class TripBudgetManager {
 
         const tripName = this.tripData.tripName || 'Trip';
         const expected = Math.round(member.expectedContribution * 100) / 100;
-        const paid = Math.round(member.actualContribution * 100) / 100;
+
+        // Cap 'Paid' at 'Expected' amount
+        const rawPaid = member.actualContribution || 0;
+        const cappedPaid = Math.min(rawPaid, expected);
+        const overflowPaid = Math.max(rawPaid - expected, 0);
+
+        const paid = Math.round(cappedPaid * 100) / 100;
         const remaining = Math.round(member.remainingContribution * 100) / 100;
         const balance = Math.round(member.balance * 100) / 100;
-        const personal = Math.round((member.personal || 0) * 100) / 100;
+
+        // Add overflow to personal expenses
+        const personal = Math.round(((member.personal || 0) + overflowPaid) * 100) / 100;
 
         let message = `*${tripName}* - Financial Summary\n\n` +
             `Member: ${member.name}\n\n` +
