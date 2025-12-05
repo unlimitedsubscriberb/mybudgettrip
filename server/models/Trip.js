@@ -18,7 +18,10 @@ const tripSchema = new mongoose.Schema({
         reimbursed: { type: Number, default: 0 },
         customExpected: { type: Boolean, default: false },
         customPersonal: { type: Boolean, default: false },
-        customBalance: { type: Boolean, default: false }
+        customBalance: { type: Boolean, default: false },
+        lastActive: { type: String, default: '' },
+        role: { type: String, default: 'member' },
+        expenseShare: { type: Number, default: 0 }
     }],
     expenses: [{
         id: String,
@@ -26,6 +29,7 @@ const tripSchema = new mongoose.Schema({
         amount: Number,
         category: String,
         paidBy: String,
+        splitBetween: [String],
         description: String,
         timestamp: String
     }],

@@ -230,464 +230,670 @@ const recalculateState = (data) => {
     console.log('>>> Total expected:', data.members.reduce((sum, m) => sum + m.expectedContribution, 0));
 };
 
+// Helper function to get trip by code (MongoDB or fallback to data.json)
+const getTripByCode = async (tripCode) => {
+    if (!tripCode) {
+        // Fallback to data.json for backward compatibility
+        return readData();
+    }
+
+    if (mongoConnected) {
+        const trip = await Trip.findOne({ tripCode });
+        return trip;
+    }
+
+    // If MongoDB not connected, check data.json
+    const data = readData();
+    if (data.tripCode === tripCode) {
+        return data;
+    }
+
+    return null;
+};
+
+// Helper function to save trip (MongoDB and data.json)
+const saveTrip = async (trip) => {
+    if (mongoConnected && trip._id) {
+        // It's a Mongoose document
+        await trip.save();
+    }
+
+    // Also save to data.json for backward compatibility
+    const tripData = trip.toObject ? trip.toObject() : trip;
+    writeData(tripData);
+
+    return trip;
+};
+
 // ---------- API Endpoints ---------- //
 
-// Get full trip data
-app.get('/api/trip', (req, res) => {
-    const data = readData();
-    res.json(data);
+// Get trip data by tripCode
+app.get('/api/trip/:tripCode?', async (req, res) => {
+    try {
+        const { tripCode } = req.params;
+
+        // If no tripCode provided, try to get from data.json (backward compatibility)
+        if (!tripCode) {
+            const data = readData();
+            return res.json(data);
+        }
+
+        // Query MongoDB for specific trip
+        const trip = await Trip.findOne({ tripCode });
+
+        if (!trip) {
+            return res.status(404).json({ message: 'Trip not found' });
+        }
+
+        res.json(trip);
+    } catch (error) {
+        console.error('Error fetching trip:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Create or update trip details (setup)
 app.post('/api/trip', async (req, res) => {
-    const data = readData();
-    const { tripName, budget, memberCount, tripDate, adminPin, clearData } = req.body;
+    try {
+        const { tripName, budget, memberCount, tripDate, adminPin, clearData, tripCode } = req.body;
 
-    console.log('>>> Setup Trip:', { tripName, adminPin });
+        console.log('>>> Setup Trip:', { tripName, adminPin, tripCode, clearData });
 
-    // If clearData is requested (New Trip Setup)
-    if (clearData) {
-        console.log('>>> Clearing old trip data for new setup');
-        data.members = [];
-        data.expenses = [];
-        data.pendingExpenses = [];
-        data.pendingMembers = [];
-        data.pendingContributions = [];
-        data.pendingBudgetRequests = [];
-        data.pendingDeletions = [];
-        // Clear trip code to force generation of new code
-        data.tripCode = '';
+        // If tripCode is provided, update existing trip
+        if (tripCode && !clearData) {
+            const trip = await Trip.findOne({ tripCode });
+            if (!trip) {
+                return res.status(404).json({ message: 'Trip not found' });
+            }
+
+            trip.tripName = tripName;
+            trip.budget = parseFloat(budget) || 0;
+            trip.memberCount = parseInt(memberCount) || 0;
+            trip.tripDate = tripDate;
+            if (adminPin) trip.adminPin = adminPin;
+
+            recalculateState(trip);
+            await trip.save();
+
+            // Also update data.json for backward compatibility
+            writeData(trip.toObject());
+
+            return res.json({ message: 'Trip updated', data: trip });
+        }
+
+        // Create NEW trip
+        const newTripCode = await generateTripCode();
+        console.log('>>> New trip code generated:', newTripCode);
+
+        const newTrip = new Trip({
+            tripCode: newTripCode,
+            tripName,
+            budget: parseFloat(budget) || 0,
+            memberCount: parseInt(memberCount) || 0,
+            tripDate,
+            adminPin: adminPin || '',
+            members: [],
+            expenses: [],
+            pendingExpenses: [],
+            pendingMembers: [],
+            pendingContributions: [],
+            pendingBudgetRequests: [],
+            pendingDeletions: []
+        });
+
+        await newTrip.save();
+        console.log('>>> New trip created in MongoDB:', newTripCode);
+
+        // Also write to data.json for backward compatibility
+        writeData(newTrip.toObject());
+
+        res.json({ message: 'Trip created', data: newTrip, tripCode: newTripCode });
+    } catch (error) {
+        console.error('Error creating/updating trip:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
-
-    data.tripName = tripName;
-    data.budget = parseFloat(budget) || 0;
-    data.memberCount = parseInt(memberCount) || 0;
-    data.tripDate = tripDate;
-    if (adminPin) {
-        data.adminPin = adminPin;
-        console.log('>>> Admin PIN saved:', data.adminPin);
-    }
-    // Always generate new code if empty (including after clearData)
-    if (!data.tripCode) {
-        data.tripCode = await generateTripCode();
-        console.log('>>> New trip code generated:', data.tripCode);
-    }
-
-    recalculateState(data);
-    writeData(data);
-    res.json({ message: 'Trip details updated', data });
 });
 
 // Join trip
-app.post('/api/join', (req, res) => {
-    const { code, name, pin } = req.body;
-    const data = readData();
+app.post('/api/join', async (req, res) => {
+    try {
+        const { code, name, pin } = req.body;
 
-    console.log('>>> Join Request:', { code, name, pin });
-    console.log('>>> Stored Admin PIN:', data.adminPin);
+        console.log('>>> Join Request:', { code, name, pin });
 
-    if (data.tripCode !== code) {
-        return res.status(400).json({ message: 'Invalid Trip Code' });
-    }
+        const trip = await getTripByCode(code);
 
-    const isAdmin = data.members.length > 0 && data.members[0].name.toLowerCase() === name.toLowerCase();
-    console.log('>>> Is Admin?', isAdmin);
-
-    if (isAdmin) {
-        if (!data.adminPin) {
-            console.log('>>> No Admin PIN stored (Legacy)');
-        } else if (!pin) {
-            console.log('>>> PIN required but not provided');
-            return res.json({ status: 'require_pin', message: 'Admin PIN required' });
-        } else if (pin !== data.adminPin) {
-            console.log('>>> Invalid PIN provided');
-            return res.status(401).json({ message: 'Invalid Admin PIN' });
-        } else {
-            console.log('>>> PIN verified successfully');
+        if (!trip) {
+            return res.status(400).json({ message: 'Invalid Trip Code' });
         }
+
+        console.log('>>> Stored Admin PIN:', trip.adminPin);
+
+        const isAdmin = trip.members.length > 0 && trip.members[0].name.toLowerCase() === name.toLowerCase();
+        console.log('>>> Is Admin?', isAdmin);
+
+        if (isAdmin) {
+            if (!trip.adminPin) {
+                console.log('>>> No Admin PIN stored (Legacy)');
+            } else if (!pin) {
+                console.log('>>> PIN required but not provided');
+                return res.json({ status: 'require_pin', message: 'Admin PIN required' });
+            } else if (pin !== trip.adminPin) {
+                console.log('>>> Invalid PIN provided');
+                return res.status(401).json({ message: 'Invalid Admin PIN' });
+            } else {
+                console.log('>>> PIN verified successfully');
+            }
+        }
+
+        const existing = trip.members.find(m => m.name.toLowerCase() === name.toLowerCase());
+        if (existing) {
+            return res.json({ message: 'Welcome back!', member: existing, data: trip, tripCode: code });
+        }
+
+        const adminName = trip.members.length > 0 ? trip.members[0].name : 'Admin';
+
+        if (trip.members.length >= trip.memberCount) {
+            return res.status(400).json({
+                message: `Member limit exceeded. Please contact admin (${adminName}).`
+            });
+        }
+
+        const pending = trip.pendingMembers.find(m => m.name.toLowerCase() === name.toLowerCase());
+        if (pending) {
+            return res.json({ message: 'Join request already pending', status: 'pending', tripCode: code });
+        }
+
+        const request = { id: Date.now().toString(), name, status: 'pending' };
+        trip.pendingMembers.push(request);
+        await saveTrip(trip);
+
+        res.json({ message: 'Join request sent to Admin', status: 'pending', data: trip, tripCode: code });
+    } catch (error) {
+        console.error('Error joining trip:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
-
-    const existing = data.members.find(m => m.name.toLowerCase() === name.toLowerCase());
-    if (existing) {
-        return res.json({ message: 'Welcome back!', member: existing, data });
-    }
-
-    const adminName = data.members.length > 0 ? data.members[0].name : 'Admin';
-
-    if (data.members.length >= data.memberCount) {
-        return res.status(400).json({
-            message: `Member limit exceeded. Please contact admin (${adminName}).`
-        });
-    }
-
-    const pending = data.pendingMembers.find(m => m.name.toLowerCase() === name.toLowerCase());
-    if (pending) {
-        return res.json({ message: 'Join request already pending', status: 'pending' });
-    }
-
-    const request = { id: Date.now().toString(), name, status: 'pending' };
-    data.pendingMembers.push(request);
-    writeData(data);
-    res.json({ message: 'Join request sent to Admin', status: 'pending', data });
 });
 
 // Admin adds a member directly
-app.post('/api/members', (req, res) => {
-    const data = readData();
-    const newMember = req.body;
-    if (!newMember.id) newMember.id = Date.now().toString();
-    data.members.push(newMember);
-    recalculateState(data);
-    writeData(data);
-    res.json({ message: 'Member added', member: newMember, data });
+app.post('/api/members', async (req, res) => {
+    try {
+        const { tripCode, ...newMember } = req.body;
+        const trip = await getTripByCode(tripCode);
+
+        if (!trip) {
+            return res.status(404).json({ message: 'Trip not found' });
+        }
+
+        if (!newMember.id) newMember.id = Date.now().toString();
+        trip.members.push(newMember);
+        recalculateState(trip);
+        await saveTrip(trip);
+        res.json({ message: 'Member added', member: newMember, data: trip, tripCode });
+    } catch (error) {
+        console.error('Error adding member:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Update member details (Admin only)
-app.post('/api/members/update', (req, res) => {
-    const { id, name, expectedContribution, actualContribution, personal, balance, customExpected, customPersonal, customBalance } = req.body;
-    const data = readData();
-    const member = data.members.find(m => m.id === id);
+app.post('/api/members/update', async (req, res) => {
+    try {
+        const { tripCode, id, name, expectedContribution, actualContribution, personal, balance, customExpected, customPersonal, customBalance } = req.body;
+        const trip = await getTripByCode(tripCode);
 
-    console.log('>>> Member Update Request:', { id, name, expectedContribution, actualContribution, personal, balance, customExpected, customPersonal, customBalance });
+        if (!trip) {
+            return res.status(404).json({ message: 'Trip not found' });
+        }
 
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+        const member = trip.members.find(m => m.id === id);
 
-    console.log('>>> Before update - Member name:', member.name);
+        console.log('>>> Member Update Request:', { id, name, expectedContribution, actualContribution, personal, balance, customExpected, customPersonal, customBalance });
 
-    if (name && name.trim()) {
-        member.name = name.trim();
-        console.log('>>> After update - Member name:', member.name);
+        if (!member) return res.status(404).json({ message: 'Member not found' });
+
+        console.log('>>> Before update - Member name:', member.name);
+
+        if (name && name.trim()) {
+            member.name = name.trim();
+            console.log('>>> After update - Member name:', member.name);
+        }
+
+        if (customExpected) {
+            member.customExpected = true;
+            member.expectedContribution = parseFloat(expectedContribution) || 0;
+        } else {
+            member.customExpected = false;
+        }
+
+        if (customPersonal) {
+            member.customPersonal = true;
+            member.personal = parseFloat(personal) || 0;
+        } else {
+            member.customPersonal = false;
+        }
+
+        if (customBalance) {
+            member.customBalance = true;
+            member.balance = parseFloat(balance) || 0;
+        } else {
+            member.customBalance = false;
+        }
+
+        member.actualContribution = parseFloat(actualContribution) || 0;
+
+        recalculateState(trip);
+        await saveTrip(trip);
+
+        console.log('>>> Final member data:', member);
+        res.json({ message: 'Member updated successfully', member, data: trip, tripCode });
+    } catch (error) {
+        console.error('Error updating member:', error);
+        res.status(500).json({ message: 'Server error' });
     }
-
-    if (customExpected) {
-        member.customExpected = true;
-        member.expectedContribution = parseFloat(expectedContribution) || 0;
-    } else {
-        member.customExpected = false;
-    }
-
-    if (customPersonal) {
-        member.customPersonal = true;
-        member.personal = parseFloat(personal) || 0;
-    } else {
-        member.customPersonal = false;
-    }
-
-    if (customBalance) {
-        member.customBalance = true;
-        member.balance = parseFloat(balance) || 0;
-    } else {
-        member.customBalance = false;
-    }
-
-    member.actualContribution = parseFloat(actualContribution) || 0;
-
-    recalculateState(data);
-    writeData(data);
-
-    console.log('>>> Final member data:', member);
-    res.json({ message: 'Member updated successfully', member, data });
 });
 
 // Update member activity (lastActive timestamp)
-app.post('/api/members/activity', (req, res) => {
-    const { memberId } = req.body;
-    const data = readData();
-    const member = data.members.find(m => m.id === memberId);
+app.post('/api/members/activity', async (req, res) => {
+    try {
+        const { tripCode, memberId } = req.body;
+        const trip = await getTripByCode(tripCode);
 
-    if (member) {
-        member.lastActive = new Date().toISOString();
-        writeData(data);
+        if (!trip) {
+            return res.status(404).json({ message: 'Trip not found' });
+        }
+
+        const member = trip.members.find(m => m.id === memberId);
+
+        if (member) {
+            member.lastActive = new Date().toISOString();
+            await saveTrip(trip);
+        }
+
+        res.json({ success: true, tripCode });
+    } catch (error) {
+        console.error('Error updating activity:', error);
+        res.status(500).json({ message: 'Server error' });
     }
-
-    res.json({ success: true });
 });
 
 // Member contribution update
-app.post('/api/members/contribute', (req, res) => {
-    const { id, amount, isAdmin } = req.body;
-    const data = readData();
-    const member = data.members.find(m => m.id === id);
-    if (!member) return res.status(404).json({ message: 'Member not found' });
-    const contrib = parseFloat(amount);
-    if (isNaN(contrib)) return res.status(400).json({ message: 'Invalid amount' });
+app.post('/api/members/contribute', async (req, res) => {
+    try {
+        const { tripCode, id, amount, isAdmin } = req.body;
+        const trip = await getTripByCode(tripCode);
 
-    if (!isAdmin) {
-        return res.status(403).json({ message: 'Members must request contribution approval' });
+        if (!trip) {
+            return res.status(404).json({ message: 'Trip not found' });
+        }
+
+        const member = trip.members.find(m => m.id === id);
+        if (!member) return res.status(404).json({ message: 'Member not found' });
+        const contrib = parseFloat(amount);
+        if (isNaN(contrib)) return res.status(400).json({ message: 'Invalid amount' });
+
+        if (!isAdmin) {
+            return res.status(403).json({ message: 'Members must request contribution approval' });
+        }
+
+        // Calculate remaining contribution needed
+        const remaining = Math.max(member.expectedContribution - (member.actualContribution || 0), 0);
+
+        // If paying more than remaining, add excess to personal
+        if (contrib > remaining && remaining > 0) {
+            const excess = contrib - remaining;
+            member.actualContribution = (member.actualContribution || 0) + remaining;
+            member.personal = (member.personal || 0) + excess;
+            console.log(`>>> Overpayment detected: ₹${excess} added to personal expenses`);
+        } else {
+            member.actualContribution = (member.actualContribution || 0) + contrib;
+        }
+
+        recalculateState(trip);
+        await saveTrip(trip);
+        res.json({ message: 'Contribution updated', member, data: trip, tripCode });
+    } catch (error) {
+        console.error('Error updating contribution:', error);
+        res.status(500).json({ message: 'Server error' });
     }
-
-    // Calculate remaining contribution needed
-    const remaining = Math.max(member.expectedContribution - (member.actualContribution || 0), 0);
-
-    // If paying more than remaining, add excess to personal
-    if (contrib > remaining && remaining > 0) {
-        const excess = contrib - remaining;
-        member.actualContribution = (member.actualContribution || 0) + remaining;
-        member.personal = (member.personal || 0) + excess;
-        console.log(`>>> Overpayment detected: ₹${excess} added to personal expenses`);
-    } else {
-        member.actualContribution = (member.actualContribution || 0) + contrib;
-    }
-
-    recalculateState(data);
-    writeData(data);
-    res.json({ message: 'Contribution updated', member, data });
 });
 
 // Member requests to add contribution
-app.post('/api/contributions/request', (req, res) => {
-    const { memberId, amount, memberName } = req.body;
-    const data = readData();
+app.post('/api/contributions/request', async (req, res) => {
+    try {
+        const { tripCode, memberId, amount, memberName } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    const request = {
-        id: Date.now().toString(),
-        memberId,
-        memberName,
-        amount: parseFloat(amount),
-        timestamp: new Date().toISOString()
-    };
+        const request = {
+            id: Date.now().toString(),
+            memberId,
+            memberName,
+            amount: parseFloat(amount),
+            timestamp: new Date().toISOString()
+        };
 
-    data.pendingContributions.push(request);
-    writeData(data);
-    res.json({ message: 'Contribution request sent for approval', data });
+        trip.pendingContributions.push(request);
+        await saveTrip(trip);
+        res.json({ message: 'Contribution request sent for approval', data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Admin approves or rejects contribution request
-app.post('/api/contributions/approve', (req, res) => {
-    const { id, action } = req.body;
-    const data = readData();
+app.post('/api/contributions/approve', async (req, res) => {
+    try {
+        const { tripCode, id, action } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    const requestIndex = data.pendingContributions.findIndex(r => r.id === id);
-    if (requestIndex === -1) return res.status(404).json({ message: 'Request not found' });
+        const requestIndex = trip.pendingContributions.findIndex(r => r.id === id);
+        if (requestIndex === -1) return res.status(404).json({ message: 'Request not found' });
 
-    const request = data.pendingContributions[requestIndex];
+        const request = trip.pendingContributions[requestIndex];
 
-    if (action === 'approve') {
-        const member = data.members.find(m => m.id === request.memberId);
-        if (member) {
-            member.actualContribution = (member.actualContribution || 0) + request.amount;
-            recalculateState(data);
+        if (action === 'approve') {
+            const member = trip.members.find(m => m.id === request.memberId);
+            if (member) {
+                member.actualContribution = (member.actualContribution || 0) + request.amount;
+                recalculateState(trip);
+            }
         }
-    }
 
-    data.pendingContributions.splice(requestIndex, 1);
-    writeData(data);
-    res.json({ message: `Contribution ${action}d`, data });
+        trip.pendingContributions.splice(requestIndex, 1);
+        await saveTrip(trip);
+        res.json({ message: `Contribution ${action}d`, data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Settle/Reimburse a member's personal expenses
-app.post('/api/members/reimburse', (req, res) => {
-    const { id, amount } = req.body;
-    const data = readData();
-    const member = data.members.find(m => m.id === id);
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+app.post('/api/members/reimburse', async (req, res) => {
+    try {
+        const { tripCode, id, amount } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    const reimburseAmount = parseFloat(amount);
-    if (isNaN(reimburseAmount) || reimburseAmount <= 0) {
-        return res.status(400).json({ message: 'Invalid amount' });
+        const member = trip.members.find(m => m.id === id);
+        if (!member) return res.status(404).json({ message: 'Member not found' });
+
+        const reimburseAmount = parseFloat(amount);
+        if (isNaN(reimburseAmount) || reimburseAmount <= 0) {
+            return res.status(400).json({ message: 'Invalid amount' });
+        }
+
+        member.reimbursed = (member.reimbursed || 0) + reimburseAmount;
+        recalculateState(trip);
+        await saveTrip(trip);
+        res.json({ message: 'Member reimbursed', member, data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
     }
-
-    member.reimbursed = (member.reimbursed || 0) + reimburseAmount;
-
-    recalculateState(data);
-    writeData(data);
-    res.json({ message: 'Member reimbursed', member, data });
 });
 
 // Refund a member's overpaid contribution
-app.post('/api/members/refund', (req, res) => {
-    const { id, amount } = req.body;
-    const data = readData();
-    const member = data.members.find(m => m.id === id);
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+app.post('/api/members/refund', async (req, res) => {
+    try {
+        const { tripCode, id, amount } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    const refundAmount = parseFloat(amount);
-    if (isNaN(refundAmount) || refundAmount <= 0) {
-        return res.status(400).json({ message: 'Invalid amount' });
+        const member = trip.members.find(m => m.id === id);
+        if (!member) return res.status(404).json({ message: 'Member not found' });
+
+        const refundAmount = parseFloat(amount);
+        if (isNaN(refundAmount) || refundAmount <= 0) {
+            return res.status(400).json({ message: 'Invalid amount' });
+        }
+
+        member.actualContribution = (member.actualContribution || 0) - refundAmount;
+        recalculateState(trip);
+        await saveTrip(trip);
+        res.json({ message: 'Member refunded', member, data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
     }
-
-    member.actualContribution = (member.actualContribution || 0) - refundAmount;
-
-    recalculateState(data);
-    writeData(data);
-    res.json({ message: 'Member refunded', member, data });
 });
 
 // Admin adds an expense directly
-app.post('/api/expenses', (req, res) => {
-    const data = readData();
-    const newExpense = req.body;
-    if (!newExpense.id) newExpense.id = Date.now().toString();
-    data.expenses.push(newExpense);
-    recalculateState(data);
-    writeData(data);
-    res.json({ message: 'Expense added', expense: newExpense, data });
+app.post('/api/expenses', async (req, res) => {
+    try {
+        const { tripCode, ...newExpense } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
+
+        if (!newExpense.id) newExpense.id = Date.now().toString();
+        trip.expenses.push(newExpense);
+        recalculateState(trip);
+        await saveTrip(trip);
+        res.json({ message: 'Expense added', expense: newExpense, data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Member requests an expense
-app.post('/api/expenses/request', (req, res) => {
-    const data = readData();
-    const newExpense = req.body;
-    if (!newExpense.id) newExpense.id = Date.now().toString();
-    newExpense.status = 'pending';
-    data.pendingExpenses.push(newExpense);
-    writeData(data);
-    res.json({ message: 'Expense request sent to Admin', expense: newExpense, data });
+app.post('/api/expenses/request', async (req, res) => {
+    try {
+        const { tripCode, ...newExpense } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
+
+        if (!newExpense.id) newExpense.id = Date.now().toString();
+        newExpense.status = 'pending';
+        trip.pendingExpenses.push(newExpense);
+        await saveTrip(trip);
+        res.json({ message: 'Expense request sent to Admin', expense: newExpense, data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Approve or reject a pending expense
-app.post('/api/expenses/approve', (req, res) => {
-    const { id, action } = req.body;
-    const data = readData();
-    const idx = data.pendingExpenses.findIndex(e => e.id === id);
-    if (idx === -1) return res.status(404).json({ message: 'Request not found' });
-    const expense = data.pendingExpenses[idx];
-    if (action === 'approve') {
-        delete expense.status;
-        data.expenses.push(expense);
-        recalculateState(data);
+app.post('/api/expenses/approve', async (req, res) => {
+    try {
+        const { tripCode, id, action } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
+
+        const idx = trip.pendingExpenses.findIndex(e => e.id === id);
+        if (idx === -1) return res.status(404).json({ message: 'Request not found' });
+        const expense = trip.pendingExpenses[idx];
+        if (action === 'approve') {
+            delete expense.status;
+            trip.expenses.push(expense);
+            recalculateState(trip);
+        }
+        trip.pendingExpenses.splice(idx, 1);
+        await saveTrip(trip);
+        res.json({ message: `Expense ${action}d`, data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
     }
-    data.pendingExpenses.splice(idx, 1);
-    writeData(data);
-    res.json({ message: `Expense ${action}d`, data });
 });
 
 // Approve or reject a pending member
-app.post('/api/members/approve', (req, res) => {
-    const { id, action, memberDetails } = req.body;
-    const data = readData();
-    const idx = data.pendingMembers.findIndex(m => m.id === id);
-    if (idx === -1) return res.status(404).json({ message: 'Request not found' });
+app.post('/api/members/approve', async (req, res) => {
+    try {
+        const { tripCode, id, action, memberDetails } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    console.log('=== MEMBER APPROVAL DEBUG ===');
-    console.log('Before approval - Member count:', data.members.length);
-    console.log('Before approval - Members:', data.members.map(m => ({ name: m.name, expected: m.expectedContribution })));
+        const idx = trip.pendingMembers.findIndex(m => m.id === id);
+        if (idx === -1) return res.status(404).json({ message: 'Request not found' });
 
-    if (action === 'approve') {
-        const memberName = memberDetails?.name || data.pendingMembers[idx].name;
+        console.log('=== MEMBER APPROVAL DEBUG ===');
+        console.log('Before approval - Member count:', trip.members.length);
+        console.log('Before approval - Members:', trip.members.map(m => ({ name: m.name, expected: m.expectedContribution })));
 
-        const newMember = {
-            id: Date.now().toString(),
-            name: memberName,
-            expectedContribution: 0,
-            actualContribution: 0,
-            remainingContribution: 0,
-            balance: 0,
-            personal: 0
-        };
+        if (action === 'approve') {
+            const memberName = memberDetails?.name || trip.pendingMembers[idx].name;
 
-        data.members.push(newMember);
+            const newMember = {
+                id: Date.now().toString(),
+                name: memberName,
+                expectedContribution: 0,
+                actualContribution: 0,
+                remainingContribution: 0,
+                balance: 0,
+                personal: 0
+            };
 
-        console.log('After adding member - Member count:', data.members.length);
+            trip.members.push(newMember);
 
-        recalculateState(data);
+            console.log('After adding member - Member count:', trip.members.length);
 
-        console.log('After recalculation - Members:', data.members.map(m => ({ name: m.name, expected: m.expectedContribution })));
-        console.log('Budget:', data.budget);
+            recalculateState(trip);
+
+            console.log('After recalculation - Members:', trip.members.map(m => ({ name: m.name, expected: m.expectedContribution })));
+            console.log('Budget:', trip.budget);
+        }
+        trip.pendingMembers.splice(idx, 1);
+        await saveTrip(trip);
+
+        console.log('=== END DEBUG ===');
+        res.json({ message: `Member ${action}d`, data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
     }
-    data.pendingMembers.splice(idx, 1);
-    writeData(data);
-
-    console.log('=== END DEBUG ===');
-    res.json({ message: `Member ${action}d`, data });
 });
 
 // Delete a member
-app.delete('/api/members/:id', (req, res) => {
-    const { id } = req.params;
-    const data = readData();
+app.delete('/api/members/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { tripCode } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    const memberIdx = data.members.findIndex(m => m.id === id);
-    if (memberIdx === -1) return res.status(404).json({ message: 'Member not found' });
+        const memberIdx = trip.members.findIndex(m => m.id === id);
+        if (memberIdx === -1) return res.status(404).json({ message: 'Member not found' });
 
-    // Prevent deleting admin (first member)
-    if (memberIdx === 0) {
-        return res.status(403).json({ message: 'Cannot delete admin' });
+        // Prevent deleting admin (first member)
+        if (memberIdx === 0) {
+            return res.status(403).json({ message: 'Cannot delete admin' });
+        }
+
+        trip.members.splice(memberIdx, 1);
+        recalculateState(trip);
+        await saveTrip(trip);
+
+        res.json({ message: 'Member deleted', data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
     }
-
-    data.members.splice(memberIdx, 1);
-    recalculateState(data);
-    writeData(data);
-
-    res.json({ message: 'Member deleted', data });
 });
 
 // Member requests account deletion
-app.post('/api/members/delete-request', (req, res) => {
-    const { memberId, memberName } = req.body;
-    const data = readData();
+app.post('/api/members/delete-request', async (req, res) => {
+    try {
+        const { tripCode, memberId, memberName } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    const exists = data.pendingDeletions.find(d => d.memberId === memberId);
-    if (exists) {
-        return res.status(400).json({ message: 'Deletion request already pending' });
+        const exists = trip.pendingDeletions.find(d => d.memberId === memberId);
+        if (exists) {
+            return res.status(400).json({ message: 'Deletion request already pending' });
+        }
+
+        const request = {
+            id: Date.now().toString(),
+            memberId,
+            memberName,
+            timestamp: new Date().toISOString()
+        };
+
+        trip.pendingDeletions.push(request);
+        await saveTrip(trip);
+        res.json({ message: 'Deletion request sent for approval', data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
     }
-
-    const request = {
-        id: Date.now().toString(),
-        memberId,
-        memberName,
-        timestamp: new Date().toISOString()
-    };
-
-    data.pendingDeletions.push(request);
-    writeData(data);
-    res.json({ message: 'Deletion request sent for approval', data });
 });
 
 // Admin approves or rejects member deletion request
-app.post('/api/members/delete-approve', (req, res) => {
-    const { id, action } = req.body;
-    const data = readData();
+app.post('/api/members/delete-approve', async (req, res) => {
+    try {
+        const { tripCode, id, action } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    const requestIndex = data.pendingDeletions.findIndex(r => r.id === id);
-    if (requestIndex === -1) return res.status(404).json({ message: 'Request not found' });
+        const requestIndex = trip.pendingDeletions.findIndex(r => r.id === id);
+        if (requestIndex === -1) return res.status(404).json({ message: 'Request not found' });
 
-    const request = data.pendingDeletions[requestIndex];
+        const request = trip.pendingDeletions[requestIndex];
 
-    if (action === 'approve') {
-        const memberIndex = data.members.findIndex(m => m.id === request.memberId);
-        if (memberIndex !== -1 && memberIndex !== 0) { // Don't delete admin
-            data.members.splice(memberIndex, 1);
-            recalculateState(data);
+        if (action === 'approve') {
+            const memberIndex = trip.members.findIndex(m => m.id === request.memberId);
+            if (memberIndex !== -1 && memberIndex !== 0) { // Don't delete admin
+                trip.members.splice(memberIndex, 1);
+                recalculateState(trip);
+            }
         }
-    }
 
-    data.pendingDeletions.splice(requestIndex, 1);
-    writeData(data);
-    res.json({ message: `Deletion ${action}d`, data, deletedMemberId: action === 'approve' ? request.memberId : null });
+        trip.pendingDeletions.splice(requestIndex, 1);
+        await saveTrip(trip);
+        res.json({ message: `Deletion ${action}d`, data: trip, tripCode, deletedMemberId: action === 'approve' ? request.memberId : null });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Delete an expense
-app.delete('/api/expenses/:id', (req, res) => {
-    const { id } = req.params;
-    const data = readData();
+app.delete('/api/expenses/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { tripCode } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    data.expenses = data.expenses.filter(e => e.id !== id);
-    recalculateState(data);
-    writeData(data);
+        trip.expenses = trip.expenses.filter(e => e.id !== id);
+        recalculateState(trip);
+        await saveTrip(trip);
 
-    res.json({ message: 'Expense deleted', data });
+        res.json({ message: 'Expense deleted', data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Reset the entire app state
-app.post('/api/reset', (req, res) => {
-    const emptyData = {
-        tripName: "",
-        tripCode: "",
-        budget: 0,
-        memberCount: 0,
-        tripDate: "",
-        adminPin: "",
-        members: [],
-        expenses: [],
-        pendingExpenses: [],
-        pendingMembers: [],
-        pendingContributions: [],
-        pendingBudgetRequests: [],
-        pendingDeletions: []
-    };
-    writeData(emptyData);
-    res.json({ message: 'App reset successfully', data: emptyData });
+app.post('/api/reset', async (req, res) => {
+    try {
+        const { tripCode } = req.body;
+
+        if (!tripCode) {
+            return res.status(400).json({ message: 'Trip code required' });
+        }
+
+        // Delete the specific trip from MongoDB
+        if (mongoConnected) {
+            await Trip.deleteOne({ tripCode });
+        }
+
+        // Clear data.json
+        const emptyData = {
+            tripName: "",
+            tripCode: "",
+            budget: 0,
+            memberCount: 0,
+            tripDate: "",
+            adminPin: "",
+            members: [],
+            expenses: [],
+            pendingExpenses: [],
+            pendingMembers: [],
+            pendingContributions: [],
+            pendingBudgetRequests: [],
+            pendingDeletions: []
+        };
+        writeData(emptyData);
+        res.json({ message: 'Trip deleted successfully', data: emptyData });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Reset member data (keep trip and admin)
@@ -723,26 +929,32 @@ app.post('/api/reset-data', (req, res) => {
 });
 
 // Budget Increase Request
-app.post('/api/budget/request', (req, res) => {
-    const { memberId, amount, reason } = req.body;
-    const data = readData();
-    const member = data.members.find(m => m.id === memberId);
+app.post('/api/budget/request', async (req, res) => {
+    try {
+        const { tripCode, memberId, amount, reason } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+        const member = trip.members.find(m => m.id === memberId);
 
-    const request = {
-        id: Date.now().toString(),
-        memberId,
-        memberName: member.name,
-        amount: parseFloat(amount),
-        reason: reason || 'Extra contribution',
-        timestamp: new Date().toISOString()
-    };
+        if (!member) return res.status(404).json({ message: 'Member not found' });
 
-    data.pendingBudgetRequests.push(request);
-    writeData(data);
+        const request = {
+            id: Date.now().toString(),
+            memberId,
+            memberName: member.name,
+            amount: parseFloat(amount),
+            reason: reason || 'Extra contribution',
+            timestamp: new Date().toISOString()
+        };
 
-    res.json({ message: 'Budget increase request sent to Admin', data });
+        trip.pendingBudgetRequests.push(request);
+        await saveTrip(trip);
+
+        res.json({ message: 'Budget increase request sent to Admin', data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Delete/Handle Budget Request
