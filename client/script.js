@@ -1097,12 +1097,12 @@ class TripBudgetManager {
         const personal = Math.round((member.personal || 0) * 100) / 100;
 
         let message = `*${tripName}* - Financial Summary\n\n` +
-            `👤 Member: ${member.name}\n\n` +
+            `Member: ${member.name}\n\n` +
             `💰 Expected: ₹${expected}\n` +
             `✅ Paid: ₹${paid}\n` +
             `❌ Unpaid: ₹${remaining}\n` +
             `📊 Balance: ₹${balance}\n` +
-            `🛍️ Personal Expenses: ₹${personal}`;
+            `🛍 Personal Expenses: ₹${personal}`;
 
         // Add trip expenses breakdown
         const memberExpenses = this.tripData.expenses.filter(e => {
