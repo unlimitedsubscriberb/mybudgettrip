@@ -1137,6 +1137,9 @@ class TripBudgetManager {
             return false;
         });
 
+        // Sort expenses by date (newest first)
+        memberExpenses.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
         if (memberExpenses.length > 0) {
             message += `\n\n*Trip Expenses*\n`;
 
@@ -1776,7 +1779,13 @@ Let's go make moments that matter! 🌅💫`;
         }
 
         let message = `*Trip Expenses - ${this.tripData.tripName}*\n\n`;
-        this.tripData.expenses.forEach(exp => {
+
+        // Sort expenses by date (newest first)
+        const sortedExpenses = [...this.tripData.expenses].sort((a, b) =>
+            new Date(b.timestamp) - new Date(a.timestamp)
+        );
+
+        sortedExpenses.forEach(exp => {
             const date = new Date(exp.timestamp).toLocaleDateString();
             message += `▪️ *${exp.title}*: ₹${exp.amount} (${date})\n`;
             message += `   Paid by: ${this.getMemberName(exp.paidBy)}\n`;
