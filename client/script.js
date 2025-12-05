@@ -875,6 +875,67 @@ class TripBudgetManager {
                 </button>
             </div>` : '';
 
+        // Build trip expenses breakdown for this member
+        let tripExpensesHtml = '';
+        const memberExpenses = this.tripData.expenses.filter(e => {
+            // Check if this member is part of the expense split
+            if (e.splitBetween && Array.isArray(e.splitBetween)) {
+                return e.splitBetween.includes(member.id);
+            } else if (e.paidBy) {
+                // Legacy format
+                if (e.paidBy === 'all_members' || e.paidBy === 'pool') {
+                    return true;
+                }
+                return e.paidBy === member.id;
+            }
+            return false;
+        });
+
+        if (memberExpenses.length > 0) {
+            tripExpensesHtml = '<div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);"><div style="font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary);">Trip Expenses</div>';
+
+            memberExpenses.forEach(e => {
+                const expenseDate = e.timestamp ? new Date(e.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'numeric', year: 'numeric' }) : '';
+
+                // Determine who paid
+                let paidByText = 'Pool';
+                if (e.paidBy && e.paidBy !== 'pool' && e.paidBy !== 'all_members') {
+                    const payer = this.tripData.members.find(m => m.id === e.paidBy);
+                    paidByText = payer ? payer.name : 'Unknown';
+                }
+
+                // Calculate member's contribution
+                let splitMembers = [];
+                if (e.splitBetween && Array.isArray(e.splitBetween)) {
+                    splitMembers = e.splitBetween;
+                } else if (e.paidBy) {
+                    if (e.paidBy === 'all_members' || e.paidBy === 'pool') {
+                        splitMembers = this.tripData.members.map(m => m.id);
+                    } else {
+                        splitMembers = [e.paidBy];
+                    }
+                }
+
+                const totalMembers = splitMembers.length;
+                const memberContribution = totalMembers > 0 ? (e.amount / totalMembers) : 0;
+                const formattedContribution = Math.round(memberContribution * 100) / 100;
+
+                tripExpensesHtml += `
+                    <div style="background: rgba(33, 150, 243, 0.05); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem; font-size: 0.85rem;">
+                        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">▪ ${e.title}: ₹${e.amount}${expenseDate ? ` (${expenseDate})` : ''}</div>
+                        <div style="color: var(--text-secondary); line-height: 1.5;">
+                            <div>Paid by: ${paidByText}</div>
+                            <div>Total member's: ${totalMembers}</div>
+                            <div style="color: var(--primary-color); font-weight: 500;">${member.name}'s contribution: ₹${formattedContribution}</div>
+                            ${e.description ? `<div style="margin-top: 0.25rem; font-style: italic;">Description: ${e.description}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            tripExpensesHtml += '</div>';
+        }
+
         card.innerHTML = `
             <div class="member-header" style="position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 1rem;">
                 <div class="member-info" style="width: 100%; padding-right: 120px;">
@@ -909,6 +970,8 @@ class TripBudgetManager {
                     <div class="amount">₹${member.personal || 0}</div>
                 </div>
             </div>
+            
+            ${tripExpensesHtml}
             
             <div class="member-actions" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
                 ${(this.currentUser && (this.currentUser.id === member.id || this.currentUser.role === 'admin')) ? `
@@ -1075,7 +1138,7 @@ class TripBudgetManager {
         const balance = Math.round(member.balance * 100) / 100;
         const personal = Math.round((member.personal || 0) * 100) / 100;
 
-        const message = `*${tripName}* - Financial Summary\n\n` +
+        let message = `*${tripName}* - Financial Summary\n\n` +
             `👤 Member: ${member.name}\n\n` +
             `💰 Expected: ₹${expected}\n` +
             `✅ Paid: ₹${paid}\n` +
@@ -1083,9 +1146,62 @@ class TripBudgetManager {
             `📊 Balance: ₹${balance}\n` +
             `🛍️ Personal Expenses: ₹${personal}`;
 
+        // Add trip expenses breakdown
+        const memberExpenses = this.tripData.expenses.filter(e => {
+            if (e.splitBetween && Array.isArray(e.splitBetween)) {
+                return e.splitBetween.includes(member.id);
+            } else if (e.paidBy) {
+                if (e.paidBy === 'all_members' || e.paidBy === 'pool') {
+                    return true;
+                }
+                return e.paidBy === member.id;
+            }
+            return false;
+        });
+
+        if (memberExpenses.length > 0) {
+            message += `\n\n*Trip Expenses*\n`;
+
+            memberExpenses.forEach(e => {
+                const expenseDate = e.timestamp ? new Date(e.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'numeric', year: 'numeric' }) : '';
+
+                // Determine who paid
+                let paidByText = 'All Members';
+                if (e.paidBy && e.paidBy !== 'pool' && e.paidBy !== 'all_members') {
+                    const payer = this.tripData.members.find(m => m.id === e.paidBy);
+                    paidByText = payer ? payer.name : 'Unknown';
+                }
+
+                // Calculate member's contribution
+                let splitMembers = [];
+                if (e.splitBetween && Array.isArray(e.splitBetween)) {
+                    splitMembers = e.splitBetween;
+                } else if (e.paidBy) {
+                    if (e.paidBy === 'all_members' || e.paidBy === 'pool') {
+                        splitMembers = this.tripData.members.map(m => m.id);
+                    } else {
+                        splitMembers = [e.paidBy];
+                    }
+                }
+
+                const totalMembers = splitMembers.length;
+                const memberContribution = totalMembers > 0 ? (e.amount / totalMembers) : 0;
+                const formattedContribution = Math.round(memberContribution * 100) / 100;
+
+                message += `\n▪ *${e.title}*: ₹${e.amount}${expenseDate ? ` (${expenseDate})` : ''}\n`;
+                message += `   Paid by: ${paidByText}\n`;
+                message += `   Total member's: ${totalMembers}\n`;
+                message += `   ${member.name}'s contribution: ₹${formattedContribution}\n`;
+                if (e.description) {
+                    message += `   Description: ${e.description}\n`;
+                }
+            });
+        }
+
         const encodedMessage = encodeURIComponent(message);
         window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
     }
+
 
     // Share all members' financial details
     shareAllMembersFinancials() {

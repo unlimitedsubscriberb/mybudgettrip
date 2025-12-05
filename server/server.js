@@ -34,18 +34,35 @@ const generateTripCode = async () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
     let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 100;
 
-    while (!isUnique) {
+    while (!isUnique && attempts < maxAttempts) {
         code = '';
         for (let i = 0; i < 6; i++) {
             code += chars.charAt(Math.floor(Math.random() * chars.length));
         }
+
         // Check uniqueness in JSON
         const data = readData();
-        if (!data.tripCode || data.tripCode !== code) {
-            isUnique = true;
+        let jsonUnique = !data.tripCode || data.tripCode !== code;
+
+        // Also check MongoDB if connected
+        let mongoUnique = true;
+        if (mongoConnected) {
+            try {
+                const existingTrip = await Trip.findOne({ tripCode: code });
+                mongoUnique = !existingTrip;
+            } catch (err) {
+                console.warn('MongoDB uniqueness check failed:', err.message);
+            }
         }
+
+        isUnique = jsonUnique && mongoUnique;
+        attempts++;
     }
+
+    console.log(`Generated trip code: ${code} (attempts: ${attempts})`);
     return code;
 };
 
@@ -238,6 +255,8 @@ app.post('/api/trip', async (req, res) => {
         data.pendingContributions = [];
         data.pendingBudgetRequests = [];
         data.pendingDeletions = [];
+        // Clear trip code to force generation of new code
+        data.tripCode = '';
     }
 
     data.tripName = tripName;
@@ -248,7 +267,11 @@ app.post('/api/trip', async (req, res) => {
         data.adminPin = adminPin;
         console.log('>>> Admin PIN saved:', data.adminPin);
     }
-    if (!data.tripCode) data.tripCode = await generateTripCode();
+    // Always generate new code if empty (including after clearData)
+    if (!data.tripCode) {
+        data.tripCode = await generateTripCode();
+        console.log('>>> New trip code generated:', data.tripCode);
+    }
 
     recalculateState(data);
     writeData(data);
