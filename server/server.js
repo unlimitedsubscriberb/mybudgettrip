@@ -897,35 +897,42 @@ app.post('/api/reset', async (req, res) => {
 });
 
 // Reset member data (keep trip and admin)
-app.post('/api/reset-data', (req, res) => {
-    const data = readData();
+// Reset member data (keep trip and admin)
+app.post('/api/reset-data', async (req, res) => {
+    try {
+        const { tripCode } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    // Keep admin (first member) but reset their stats
-    if (data.members.length > 0) {
-        const admin = data.members[0];
-        admin.actualContribution = 0;
-        admin.expectedContribution = 0;
-        admin.remainingContribution = 0;
-        admin.balance = 0;
-        admin.personal = 0;
-        admin.reimbursed = 0;
-        data.members = [admin];
-    } else {
-        data.members = [];
+        // Keep admin (first member) but reset their stats
+        if (trip.members.length > 0) {
+            const admin = trip.members[0];
+            admin.actualContribution = 0;
+            admin.expectedContribution = 0;
+            admin.remainingContribution = 0;
+            admin.balance = 0;
+            admin.personal = 0;
+            admin.reimbursed = 0;
+            trip.members = [admin];
+        } else {
+            trip.members = [];
+        }
+
+        // Clear all other data
+        trip.expenses = [];
+        trip.pendingExpenses = [];
+        trip.pendingMembers = [];
+        trip.pendingContributions = [];
+        trip.pendingBudgetRequests = [];
+        trip.pendingDeletions = [];
+
+        recalculateState(trip);
+        await saveTrip(trip);
+
+        res.json({ message: 'Member data reset successfully', data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
     }
-
-    // Clear all other data
-    data.expenses = [];
-    data.pendingExpenses = [];
-    data.pendingMembers = [];
-    data.pendingContributions = [];
-    data.pendingBudgetRequests = [];
-    data.pendingDeletions = [];
-
-    recalculateState(data);
-    writeData(data);
-
-    res.json({ message: 'Member data reset successfully', data });
 });
 
 // Budget Increase Request
@@ -958,14 +965,21 @@ app.post('/api/budget/request', async (req, res) => {
 });
 
 // Delete/Handle Budget Request
-app.delete('/api/budget/request/:id', (req, res) => {
-    const { id } = req.params;
-    const data = readData();
+// Delete/Handle Budget Request
+app.delete('/api/budget/request/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { tripCode } = req.body;
+        const trip = await getTripByCode(tripCode);
+        if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    data.pendingBudgetRequests = data.pendingBudgetRequests.filter(r => r.id !== id);
-    writeData(data);
+        trip.pendingBudgetRequests = trip.pendingBudgetRequests.filter(r => r.id !== id);
+        await saveTrip(trip);
 
-    res.json({ message: 'Request processed', data });
+        res.json({ message: 'Request processed', data: trip, tripCode });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Keep-alive mechanism

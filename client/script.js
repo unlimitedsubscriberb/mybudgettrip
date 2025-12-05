@@ -999,7 +999,11 @@ class TripBudgetManager {
 
     async handleBudgetRequest(id, action, amount, memberName) {
         if (action === 'reject') {
-            await fetch(`/api/budget/request/${id}`, { method: 'DELETE' });
+            await fetch(`/api/budget/request/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tripCode: this.tripCode })
+            });
             this.showNotification('Request rejected', 'info');
             await this.loadFromStorage();
             return;
@@ -1019,7 +1023,11 @@ class TripBudgetManager {
                     })
                 });
                 // 2. Clear Request
-                await fetch(`/api/budget/request/${id}`, { method: 'DELETE' });
+                await fetch(`/api/budget/request/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tripCode: this.tripCode })
+                });
                 this.showNotification('Budget increased & Request approved', 'success');
                 await this.loadFromStorage();
             }
