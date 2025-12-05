@@ -1024,11 +1024,30 @@ class TripBudgetManager {
 
     displayMembers() {
         const grid = document.getElementById('membersGrid');
+
+        // Save current input values before clearing
+        const inputValues = {};
+        this.tripData.members.forEach(m => {
+            const input = document.getElementById(`contrib-${m.id}`);
+            if (input && input.value) {
+                inputValues[m.id] = input.value;
+            }
+        });
+
         grid.innerHTML = '';
         this.tripData.members.forEach((m, index) => {
             grid.appendChild(this.createMemberCard(m, index));
         });
+
+        // Restore input values after re-rendering
+        Object.keys(inputValues).forEach(memberId => {
+            const input = document.getElementById(`contrib-${memberId}`);
+            if (input) {
+                input.value = inputValues[memberId];
+            }
+        });
     }
+
 
     // Delete a member
     async deleteMember(id) {
