@@ -897,11 +897,21 @@ class TripBudgetManager {
         const card = document.createElement('div');
         card.className = 'member-card';
         // Values (rounded to 2 decimals)
+        // Values (rounded to 2 decimals)
         const expected = Math.round(member.expectedContribution * 100) / 100;
-        const paid = Math.round(member.actualContribution * 100) / 100;
+
+        // Cap displayed 'Paid' at 'Expected' amount
+        const rawPaid = member.actualContribution || 0;
+        const cappedPaid = Math.min(rawPaid, expected);
+        const overflowPaid = Math.max(rawPaid - expected, 0);
+
+        const paid = Math.round(cappedPaid * 100) / 100;
         const remaining = Math.round(member.remainingContribution * 100) / 100;
         const balance = Math.round(member.balance * 100) / 100;
         const balanceClass = balance >= 0 ? 'positive' : 'negative';
+
+        // Add overflow to personal display
+        const displayPersonal = (member.personal || 0) + overflowPaid;
 
         // Check if member is online (lastActive within 5 minutes)
         const isOnline = member.lastActive && (Date.now() - new Date(member.lastActive).getTime()) < 5 * 60 * 1000;
@@ -955,7 +965,7 @@ class TripBudgetManager {
                 </div>
                 <div class="stat-item" style="grid-column: span 2;">
                     <div class="label">Personal Expenses</div>
-                    <div class="amount">₹${member.personal || 0}</div>
+                    <div class="amount">₹${Math.round(displayPersonal * 100) / 100}</div>
                 </div>
             </div>
             
@@ -1035,7 +1045,9 @@ class TripBudgetManager {
     }
 
     updateBudgetOverview() {
-        const totalCollected = this.tripData.members.reduce((sum, m) => sum + (m.actualContribution || 0), 0);
+        const totalCollected = this.tripData.members.reduce((sum, m) => {
+            return sum + Math.min(m.actualContribution || 0, m.expectedContribution || 0);
+        }, 0);
         const totalSpent = this.tripData.expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
         const remaining = totalCollected - totalSpent;
 
@@ -1055,7 +1067,9 @@ class TripBudgetManager {
         if (!container) return;
         container.innerHTML = '';
 
-        const totalCollected = this.tripData.members.reduce((sum, m) => sum + (m.actualContribution || 0), 0);
+        const totalCollected = this.tripData.members.reduce((sum, m) => {
+            return sum + Math.min(m.actualContribution || 0, m.expectedContribution || 0);
+        }, 0);
         const totalSpent = this.tripData.expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
         const remaining = totalCollected - totalSpent;
 
