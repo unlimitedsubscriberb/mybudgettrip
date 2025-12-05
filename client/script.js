@@ -1881,7 +1881,7 @@ const tripManager = new TripBudgetManager();
 window.exportToPDF = () => alert('PDF Export feature coming soon!');
 window.exportData = () => alert('Data Export feature coming soon!');
 window.resetApp = async () => {
-    const user = JSON.parse(localStorage.getItem('tripUser'));
+    const user = tripManager.currentUser;
     if (!user || user.role !== 'admin') {
         alert('Only Admin can reset the app.');
         return;
@@ -1955,9 +1955,11 @@ function updateDarkModeIcon(isDarkMode) {
 }
 
 // Logout function
+// Logout function
 function logout() {
     if (confirm('Are you sure you want to logout?')) {
         localStorage.removeItem('tripUser');
+        localStorage.removeItem('tripSession');
         location.reload();
     }
 }
