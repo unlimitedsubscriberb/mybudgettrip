@@ -258,9 +258,10 @@ class TripBudgetManager {
 
                     // Find member ID
                     if (result.data && result.data.members) {
-                        const member = result.data.members.find(m => m.name === name);
+                        const member = result.data.members.find(m => m.name.toLowerCase() === name.toLowerCase());
                         if (member) {
                             this.currentUser.id = member.id;
+                            this.currentUser.name = member.name; // Use official name from DB
                             // Check if this user is actually the admin (first member)
                             if (result.data.members.length > 0 && result.data.members[0].id === member.id) {
                                 this.currentUser.role = 'admin';
