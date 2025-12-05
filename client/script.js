@@ -12,7 +12,12 @@ class TripBudgetManager {
             pendingExpenses: [],
             pendingMembers: []
         };
-        this.currentUser = JSON.parse(localStorage.getItem('tripUser')) || null; // { name: 'Rahul', role: 'admin' | 'member'}
+
+        // Load user and tripCode from localStorage
+        const stored = JSON.parse(localStorage.getItem('tripSession')) || null;
+        this.currentUser = stored ? stored.user : null;
+        this.tripCode = stored ? stored.tripCode : null;
+
         this.expectedContribution = 0;
         this.init();
     }
@@ -49,21 +54,29 @@ class TripBudgetManager {
 
     async loadFromStorage() {
         try {
-            const response = await fetch('/api/trip');
+            // Fetch trip by tripCode if available
+            const url = this.tripCode ? `/api/trip/${this.tripCode}` : '/api/trip';
+            const response = await fetch(url);
             const data = await response.json();
 
             // Update member's lastActive timestamp if logged in
-            if (this.currentUser && this.currentUser.id) {
+            if (this.currentUser && this.currentUser.id && this.tripCode) {
                 fetch('/api/members/activity', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ memberId: this.currentUser.id })
+                    body: JSON.stringify({ tripCode: this.tripCode, memberId: this.currentUser.id })
                 }).catch(err => console.log('Activity update failed:', err));
             }
 
             // Only update if data has changed to avoid UI flickering and input reset
             if (JSON.stringify(data) !== JSON.stringify(this.tripData)) {
                 this.tripData = data;
+
+                // Update tripCode if it changed
+                if (data.tripCode && data.tripCode !== this.tripCode) {
+                    this.tripCode = data.tripCode;
+                    this.saveSession();
+                }
 
                 // Auto-fix: If currentUser exists but has no ID (legacy session), try to find it
                 if (this.currentUser && !this.currentUser.id && this.tripData.members) {
@@ -74,7 +87,7 @@ class TripBudgetManager {
                         if (this.tripData.members.length > 0 && this.tripData.members[0].id === me.id) {
                             this.currentUser.role = 'admin';
                         }
-                        localStorage.setItem('tripUser', JSON.stringify(this.currentUser));
+                        this.saveSession();
                         console.log('Session auto-repaired: ID added to currentUser');
                     }
                 }
@@ -83,6 +96,16 @@ class TripBudgetManager {
             }
         } catch (error) {
             console.error('Error loading data:', error);
+        }
+    }
+
+    // Helper to save user session with tripCode
+    saveSession() {
+        if (this.currentUser || this.tripCode) {
+            localStorage.setItem('tripSession', JSON.stringify({
+                user: this.currentUser,
+                tripCode: this.tripCode
+            }));
         }
     }
 
@@ -225,8 +248,13 @@ class TripBudgetManager {
                     this.showNotification('Join request sent to Admin for approval!', 'success');
                     // We don't log them in yet, just notify
                 } else {
-                    // Already a member or auto-approved (if we change logic later)
+                    // Already a member or auto-approved
                     this.currentUser = { name: name, role: 'member' }; // Default to member
+
+                    // Save tripCode from response
+                    if (result.tripCode) {
+                        this.tripCode = result.tripCode;
+                    }
 
                     // Find member ID
                     if (result.data && result.data.members) {
@@ -240,7 +268,7 @@ class TripBudgetManager {
                         }
                     }
 
-                    localStorage.setItem('tripUser', JSON.stringify(this.currentUser));
+                    this.saveSession(); // Save user + tripCode
                     this.tripData = result.data;
                     this.showAppSection();
                     this.showNotification(result.message || `Welcome ${name}!`, 'success');
@@ -297,11 +325,10 @@ class TripBudgetManager {
             name: adminName,
             role: 'admin'
         };
-        localStorage.setItem('tripUser', JSON.stringify(this.currentUser));
 
         try {
             // 1. Setup Trip (with clearData flag to reset old data atomically)
-            await fetch('/api/trip', {
+            const tripResponse = await fetch('/api/trip', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -314,12 +341,21 @@ class TripBudgetManager {
                 })
             });
 
-            // 2. Add Admin Member
-            if (members.length > 0) {
+            const tripResult = await tripResponse.json();
+
+            // Save tripCode from response
+            if (tripResult.tripCode) {
+                this.tripCode = tripResult.tripCode;
+            }
+
+            this.saveSession(); // Save user + tripCode
+
+            // 2. Add Admin Member (with tripCode)
+            if (members.length > 0 && this.tripCode) {
                 await fetch('/api/members', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(members[0])
+                    body: JSON.stringify({ tripCode: this.tripCode, ...members[0] })
                 });
             }
 
@@ -388,7 +424,7 @@ class TripBudgetManager {
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(expense)
+                body: JSON.stringify({ tripCode: this.tripCode, ...expense })
             });
 
             if (response.ok) {
@@ -430,7 +466,7 @@ class TripBudgetManager {
                 await fetch('/api/members', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(member)
+                    body: JSON.stringify({ tripCode: this.tripCode, ...member })
                 });
                 this.showNotification(`${name} added successfully`, 'success');
             } else {
@@ -461,7 +497,7 @@ class TripBudgetManager {
             await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, action, memberDetails: details })
+                body: JSON.stringify({ tripCode: this.tripCode, id, action, memberDetails: details })
             });
             this.showNotification(`${type === 'expense' ? 'Expense' : 'Member'} ${action}d`, 'success');
             await this.loadFromStorage();
@@ -581,7 +617,7 @@ class TripBudgetManager {
             const response = await fetch('/api/members/refund', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: memberId, amount })
+                body: JSON.stringify({ tripCode: this.tripCode, id: memberId, amount })
             });
 
             if (response.ok) {
@@ -603,7 +639,7 @@ class TripBudgetManager {
             const response = await fetch('/api/members/reimburse', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: memberId, amount })
+                body: JSON.stringify({ tripCode: this.tripCode, id: memberId, amount })
             });
 
             if (response.ok) {
@@ -784,7 +820,7 @@ class TripBudgetManager {
                 response = await fetch('/api/members/contribute', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: memberId, amount, isAdmin: true })
+                    body: JSON.stringify({ tripCode: this.tripCode, id: memberId, amount, isAdmin: true })
                 });
                 message = 'Contribution added';
             } else {
@@ -794,6 +830,7 @@ class TripBudgetManager {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        tripCode: this.tripCode,
                         memberId,
                         amount,
                         memberName: member ? member.name : 'Unknown'
@@ -834,7 +871,7 @@ class TripBudgetManager {
             const response = await fetch('/api/contributions/approve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, action })
+                body: JSON.stringify({ tripCode: this.tripCode, id, action })
             });
 
             if (response.ok) {
@@ -948,7 +985,7 @@ class TripBudgetManager {
             const response = await fetch('/api/budget/request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ memberId, amount, reason: 'User requested limit increase' })
+                body: JSON.stringify({ tripCode: this.tripCode, memberId, amount, reason: 'User requested limit increase' })
             });
             if (response.ok) {
                 this.showNotification('Request sent to Admin', 'success');
@@ -976,6 +1013,7 @@ class TripBudgetManager {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        tripCode: this.tripCode,
                         ...this.tripData,
                         budget: newBudget
                     })
@@ -1073,7 +1111,11 @@ class TripBudgetManager {
     async deleteMember(id) {
         if (!confirm('Remove this member?')) return;
         try {
-            const response = await fetch(`/api/members/${id}`, { method: 'DELETE' });
+            const response = await fetch(`/api/members/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tripCode: this.tripCode })
+            });
             if (response.ok) {
                 this.showNotification('Member removed', 'success');
                 await this.loadFromStorage();
@@ -1217,7 +1259,11 @@ class TripBudgetManager {
     async deleteExpense(id) {
         if (!confirm('Delete this expense?')) return;
         try {
-            const response = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+            const response = await fetch(`/api/expenses/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tripCode: this.tripCode })
+            });
             if (response.ok) {
                 this.showNotification('Expense deleted', 'success');
                 await this.loadFromStorage();
@@ -1400,7 +1446,7 @@ class TripBudgetManager {
             await fetch('/api/trip', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedTrip)
+                body: JSON.stringify({ tripCode: this.tripCode, ...updatedTrip })
             });
 
             this.showNotification('Trip details updated', 'success');
@@ -1455,6 +1501,7 @@ class TripBudgetManager {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    tripCode: this.tripCode,
                     id,
                     name,
                     expectedContribution,
@@ -1676,7 +1723,7 @@ class TripBudgetManager {
             await fetch('/api/trip', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedTrip)
+                body: JSON.stringify({ tripCode: this.tripCode, ...updatedTrip })
             });
 
             this.showNotification('Trip details updated', 'success');
@@ -1832,8 +1879,12 @@ window.resetApp = async () => {
         return;
     }
     if (confirm('Are you sure? This will delete all data.')) {
-        await fetch('/api/reset', { method: 'POST' });
-        localStorage.removeItem('tripUser');
+        await fetch('/api/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tripCode: tripManager.tripCode })
+        });
+        localStorage.removeItem('tripSession');
         location.reload();
     }
 };
