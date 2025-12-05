@@ -1025,8 +1025,10 @@ class TripBudgetManager {
     displayMembers() {
         const grid = document.getElementById('membersGrid');
 
-        // Save current input values before clearing
+        // Save current input values and focused element before clearing
         const inputValues = {};
+        const focusedElementId = document.activeElement ? document.activeElement.id : null;
+
         this.tripData.members.forEach(m => {
             const input = document.getElementById(`contrib-${m.id}`);
             if (input && input.value) {
@@ -1039,13 +1041,21 @@ class TripBudgetManager {
             grid.appendChild(this.createMemberCard(m, index));
         });
 
-        // Restore input values after re-rendering
+        // Restore input values and focus after re-rendering
         Object.keys(inputValues).forEach(memberId => {
             const input = document.getElementById(`contrib-${memberId}`);
             if (input) {
                 input.value = inputValues[memberId];
             }
         });
+
+        // Restore focus if it was on an input
+        if (focusedElementId && focusedElementId.startsWith('contrib-')) {
+            const focusedInput = document.getElementById(focusedElementId);
+            if (focusedInput) {
+                focusedInput.focus();
+            }
+        }
     }
 
 
@@ -1759,7 +1769,28 @@ Let's go make moments that matter! 🌅💫`;
         this.tripData.expenses.forEach(exp => {
             const date = new Date(exp.timestamp).toLocaleDateString();
             message += `▪️ *${exp.title}*: ₹${exp.amount} (${date})\n`;
-            message += `   Paid by: ${this.getMemberName(exp.paidBy)}\n\n`;
+            message += `   Paid by: ${this.getMemberName(exp.paidBy)}\n`;
+
+            // Show split between members
+            let splitMembers = [];
+            if (exp.splitBetween && Array.isArray(exp.splitBetween)) {
+                splitMembers = exp.splitBetween.map(id => this.getMemberName(id));
+            } else if (exp.paidBy) {
+                if (exp.paidBy === 'all_members' || exp.paidBy === 'pool') {
+                    splitMembers = ['All Members'];
+                } else {
+                    splitMembers = [this.getMemberName(exp.paidBy)];
+                }
+            }
+
+            if (splitMembers.length > 0) {
+                message += `   Split between: ${splitMembers.join(', ')}\n`;
+            }
+
+            if (exp.description) {
+                message += `   Description: ${exp.description}\n`;
+            }
+            message += `\n`;
         });
 
         const totalSpent = document.getElementById('totalSpent') ? document.getElementById('totalSpent').textContent : '0';
